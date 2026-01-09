@@ -24,6 +24,7 @@
 - [Features](#features)
 - [Model Architecture](#model-architecture)
 - [Installation](#installation)
+- [API Server](#api-server)
 - [Usage](#usage)
 - [Examples](#examples)
 - [Model Performance](#model-performance)
@@ -141,6 +142,82 @@ uv pip install modelscope
 
 modelscope download --model qwen/Qwen3-VL-Embedding-2B --local_dir ./models/Qwen3-VL-Embedding-2B
 ```
+
+## API Server
+
+We provide an OpenAI-compatible API server that supports multimodal embeddings with text, images (URL, local paths), and mixed inputs.
+
+### Quick Start
+
+**Start the API server:**
+```bash
+# Default: host=0.0.0.0, port=8000
+python api_server.py
+
+# Custom configuration
+python api_server.py --host 127.0.0.1 --port 9000 --model-path ./models/Qwen3-VL-Embedding-2B
+
+# View all options
+python api_server.py --help
+```
+
+**Test the API:**
+```bash
+python test_api.py
+```
+
+### API Usage
+
+The server provides OpenAI-compatible endpoints:
+
+**Embeddings API (`POST /v1/embeddings`):**
+```python
+import requests
+
+# Text embedding
+response = requests.post("http://localhost:8000/v1/embeddings", json={
+    "input": "Hello, world!",
+    "model": "qwen3-vl-embedding"
+})
+
+# Image embedding (supports URL, relative, and absolute paths)
+response = requests.post("http://localhost:8000/v1/embeddings", json={
+    "input": "https://example.com/image.jpg",  # URL
+    "model": "qwen3-vl-embedding"
+})
+
+response = requests.post("http://localhost:8000/v1/embeddings", json={
+    "input": "./data/examples/image.jpg",  # Relative path
+    "model": "qwen3-vl-embedding"
+})
+
+# Mixed multimodal input
+response = requests.post("http://localhost:8000/v1/embeddings", json={
+    "input": [
+        "Text description",
+        "./images/photo.jpg",
+        {
+            "text": "What is in this image?",
+            "image": "https://example.com/image.jpg",
+            "instruction": "Analyze this image."
+        }
+    ],
+    "model": "qwen3-vl-embedding"
+})
+```
+
+**Other endpoints:**
+- `GET /health` - Health check
+- `GET /v1/models` - List available models
+
+### Command Line Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--model-path` | Path to the model directory | `./models/Qwen3-VL-Embedding-2B` |
+| `--host` | Host to bind the server | `0.0.0.0` |
+| `--port` | Port to bind the server | `8000` |
+| `--log-level` | Log level (DEBUG/INFO/WARNING/ERROR) | `INFO` |
 
 ## Usage
 
