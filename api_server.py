@@ -11,6 +11,8 @@ from pathlib import Path
 import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
 from pydantic import BaseModel, Field, validator
 import requests
 from PIL import Image
@@ -19,6 +21,9 @@ import uvicorn
 
 sys.path.append(str(Path(__file__).parent))
 from src.models.qwen3_vl_embedding import Qwen3VLEmbedder
+from src.app.database.sqlite import sqlite_manager
+from src.app.routers import documents_router, search_router, collections_router
+from src.app.config import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -197,10 +202,22 @@ class APIServer:
             logger.error(traceback.format_exc())
             raise HTTPException(status_code=500, detail=str(e))
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize and cleanup resources."""
+    # Startup
+    logger.info("Initializing database...")
+    await sqlite_manager.initialize()
+    logger.info("Database initialized")
+    yield
+    # Shutdown
+    logger.info("Shutting down...")
+
 app = FastAPI(
     title="Qwen3-VL Embedding API",
-    description="OpenAI-compatible API for Qwen3-VL embeddings",
-    version="1.0.0"
+    description="OpenAI-compatible API for Qwen3-VL embeddings with multimodal search",
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -210,6 +227,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include API routers
+app.include_router(documents_router, prefix="/api")
+app.include_router(search_router, prefix="/api")
+app.include_router(collections_router, prefix="/api")
+
+# Serve uploaded files
+app.mount("/files", StaticFiles(directory=str(settings.UPLOADS_DIR)), name="files")
+
+# Serve frontend (if exists)
+frontend_dist = Path(__file__).parent / "frontend" / "dist"
+if frontend_dist.exists():
+    from fastapi.responses import FileResponse
+
+    # Serve static assets
+    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+
+    # SPA fallback - serve index.html for all non-API routes
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Don't serve index.html for API or file routes
+        if full_path.startswith(("api/", "v1/", "files/", "health")):
+            raise HTTPException(status_code=404)
+
+        file_path = frontend_dist / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(frontend_dist / "index.html")
 
 # Initialize with default path, will be overridden in main
 api_server = None

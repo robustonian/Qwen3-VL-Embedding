@@ -2,7 +2,7 @@
 __pycache__/
 *.py[oc]
 build/
-dist/
+/dist/
 wheels/
 *.egg-info
 
@@ -16,3 +16,11 @@ wheels/
 !/data/evaluation/mmeb_v2/download_data.sh
 tmp*
 .ipynb_checkpoints/
+
+# Frontend
+frontend/node_modules/
+frontend/.vite/
+
+# Application data
+/data/uploads/
+/data/db/
