@@ -145,7 +145,9 @@ modelscope download --model qwen/Qwen3-VL-Embedding-2B --local_dir ./models/Qwen
 
 ## API Server
 
-We provide an OpenAI-compatible API server that supports multimodal embeddings with text, images (URL, local paths), and mixed inputs.
+We provide an OpenAI-compatible API server that supports multimodal embeddings with text, images (URL, local paths, Base64), and mixed inputs.
+
+> **日本語ドキュメント**: [docs/API_USAGE_JA.md](docs/API_USAGE_JA.md)
 
 ### Quick Start
 
@@ -188,6 +190,15 @@ response = requests.post("http://localhost:8000/v1/embeddings", json={
 
 response = requests.post("http://localhost:8000/v1/embeddings", json={
     "input": "./data/examples/image.jpg",  # Relative path
+    "model": "qwen3-vl-embedding"
+})
+
+# Base64 image (for remote clients)
+import base64
+with open("local_image.jpg", "rb") as f:
+    img_base64 = base64.b64encode(f.read()).decode()
+response = requests.post("http://localhost:8000/v1/embeddings", json={
+    "input": f"data:image/jpeg;base64,{img_base64}",
     "model": "qwen3-vl-embedding"
 })
 

@@ -3,6 +3,8 @@ import sys
 import logging
 import traceback
 import argparse
+import base64
+import re
 from typing import List, Union, Dict, Any, Optional
 from pathlib import Path
 
@@ -80,12 +82,31 @@ class APIServer:
     def _is_url(self, path: str) -> bool:
         return path.startswith(('http://', 'https://'))
 
+    def _is_base64(self, data: str) -> bool:
+        return data.startswith('data:image/') or self._is_raw_base64(data)
+
+    def _is_raw_base64(self, data: str) -> bool:
+        if len(data) < 100:
+            return False
+        base64_pattern = re.compile(r'^[A-Za-z0-9+/]+={0,2}$')
+        return bool(base64_pattern.match(data[:100]))
+
+    def _decode_base64_image(self, data: str) -> Image.Image:
+        if data.startswith('data:image/'):
+            header, encoded = data.split(',', 1)
+        else:
+            encoded = data
+        image_bytes = base64.b64decode(encoded)
+        return Image.open(BytesIO(image_bytes))
+
     def _is_absolute_path(self, path: str) -> bool:
         return os.path.isabs(path)
 
     def _process_image_path(self, image_path: str) -> Union[str, Image.Image]:
         try:
-            if self._is_url(image_path):
+            if self._is_base64(image_path):
+                return self._decode_base64_image(image_path)
+            elif self._is_url(image_path):
                 response = requests.get(image_path, timeout=10)
                 response.raise_for_status()
                 return Image.open(BytesIO(response.content))
@@ -106,7 +127,7 @@ class APIServer:
 
     def _parse_input_item(self, item: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
         if isinstance(item, str):
-            if self._is_url(item) or os.path.exists(item) or os.path.exists(os.path.abspath(item)):
+            if self._is_base64(item) or self._is_url(item) or os.path.exists(item) or os.path.exists(os.path.abspath(item)):
                 try:
                     image = self._process_image_path(item)
                     return {"image": image}
