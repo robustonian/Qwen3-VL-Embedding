@@ -171,18 +171,17 @@ const handleSuggestionClick = (suggestion) => {
         <!-- Content -->
         <div class="relative z-10">
           <!-- Search Type Tabs with Sliding Indicator -->
-          <div class="relative flex gap-1 p-1 bg-bg-tertiary/50 rounded-xl mb-4 w-fit">
+          <div class="relative inline-flex gap-1 p-1 bg-bg-tertiary/50 rounded-xl mb-4">
             <!-- Sliding Indicator -->
             <div
-              class="absolute top-1 bottom-1 rounded-lg bg-accent transition-all duration-300 ease-smooth"
+              class="absolute top-1 bottom-1 w-[130px] rounded-lg bg-accent transition-all duration-300 ease-smooth"
               :style="{
-                left: searchType === 'text' ? '4px' : 'calc(50% + 2px)',
-                width: 'calc(50% - 6px)'
+                left: searchType === 'text' ? '4px' : 'calc(130px + 8px)'
               }"
             ></div>
 
             <button
-              class="relative z-10 flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
+              class="relative z-10 w-[130px] flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
               :class="searchType === 'text' ? 'text-white' : 'text-text-secondary hover:text-text-primary'"
               @click="searchType = 'text'; clearImage()"
             >
@@ -192,7 +191,7 @@ const handleSuggestionClick = (suggestion) => {
               テキスト検索
             </button>
             <button
-              class="relative z-10 flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
+              class="relative z-10 w-[130px] flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
               :class="searchType === 'image' ? 'text-white' : 'text-text-secondary hover:text-text-primary'"
               @click="searchType = 'image'"
             >
