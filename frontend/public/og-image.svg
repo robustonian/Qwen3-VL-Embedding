@@ -42,7 +42,7 @@
 
   <!-- Title -->
   <text x="600" y="450" text-anchor="middle" font-family="Inter, sans-serif" font-size="56" font-weight="700" fill="white">
-    Qwen3-VL Search
+    Qwen3-VL-Embedding
   </text>
 
   <!-- Subtitle -->

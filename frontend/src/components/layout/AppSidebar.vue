@@ -34,17 +34,27 @@ const stats = computed(() => documentsStore.stats)
     :class="collapsed ? 'w-16' : 'w-64'"
   >
     <!-- Logo & Toggle -->
-    <div class="p-4 border-b border-border flex items-center justify-between">
-      <div v-if="!collapsed" class="overflow-hidden">
-        <h1 class="text-xl font-bold text-accent whitespace-nowrap">Qwen3-VL</h1>
-        <p class="text-sm text-text-muted whitespace-nowrap">Multimodal Search</p>
+    <div class="p-4 border-b border-border">
+      <div v-if="!collapsed">
+        <h1 class="text-lg font-bold text-accent">Qwen3-VL-Embedding</h1>
+        <div class="flex items-center justify-between">
+          <p class="text-sm text-text-muted">Multimodal Search</p>
+          <button
+            @click="emit('toggle')"
+            class="p-1.5 rounded-lg hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+          </button>
+        </div>
       </div>
       <button
+        v-else
         @click="emit('toggle')"
-        class="p-2 rounded-lg hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors"
-        :class="collapsed ? 'mx-auto' : ''"
+        class="p-2 rounded-lg hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors mx-auto block"
       >
-        <svg class="w-5 h-5 transition-transform" :class="collapsed ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
         </svg>
       </button>
