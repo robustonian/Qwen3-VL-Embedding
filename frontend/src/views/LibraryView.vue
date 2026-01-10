@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useDocumentsStore } from '@/stores/documents'
 import { useCollectionsStore } from '@/stores/collections'
+import PreviewModal from '@/components/PreviewModal.vue'
 
 const documentsStore = useDocumentsStore()
 const collectionsStore = useCollectionsStore()
@@ -12,6 +13,19 @@ const uploadCollection = ref('')
 const isUploading = ref(false)
 const uploadProgress = ref(0)
 const isDragging = ref(false)
+
+const showPreview = ref(false)
+const selectedDocument = ref(null)
+
+const openPreview = (doc) => {
+  selectedDocument.value = doc
+  showPreview.value = true
+}
+
+const closePreview = () => {
+  showPreview.value = false
+  selectedDocument.value = null
+}
 
 const documents = computed(() => documentsStore.documents)
 const isLoading = computed(() => documentsStore.loading)
@@ -145,7 +159,8 @@ const changePage = (page) => {
         <div
           v-for="doc in documents"
           :key="doc.id"
-          class="group bg-bg-secondary border border-border rounded-lg overflow-hidden hover:border-accent transition-colors"
+          class="group bg-bg-secondary border border-border rounded-lg overflow-hidden hover:border-accent transition-colors cursor-pointer"
+          @click="openPreview(doc)"
         >
           <!-- Thumbnail -->
           <div class="aspect-square bg-bg-tertiary relative overflow-hidden">
@@ -162,17 +177,17 @@ const changePage = (page) => {
             </div>
 
             <!-- Actions -->
-            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-              <a
-                :href="getFileUrl(doc.file_path)"
-                target="_blank"
+            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2" @click.stop>
+              <button
+                @click="openPreview(doc)"
                 class="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
-                title="開く"
+                title="プレビュー"
               >
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
-              </a>
+              </button>
               <button
                 @click="handleDelete(doc.id)"
                 class="p-2 bg-red-500/80 rounded-full hover:bg-red-500 transition-colors"
@@ -337,6 +352,13 @@ const changePage = (page) => {
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Preview Modal -->
+    <PreviewModal
+      :show="showPreview"
+      :document="selectedDocument"
+      @close="closePreview"
+    />
   </div>
 </template>
 

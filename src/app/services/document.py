@@ -74,6 +74,23 @@ class DocumentService:
         collection_id: str = None
     ) -> Dict[str, Any]:
         """Upload and process a single file."""
+        file_size = len(file_content)
+        content_hash = hashlib.sha256(file_content).hexdigest()
+
+        # Check for duplicate by content hash
+        existing_file = await sqlite_manager.get_file_by_hash(content_hash)
+        if existing_file:
+            logger.info(f"Skipping duplicate file: {file_name} (matches {existing_file['id']})")
+            return {
+                "id": existing_file["id"],
+                "file_name": existing_file["file_name"],
+                "file_type": existing_file["file_type"],
+                "file_size": existing_file["file_size"],
+                "thumbnail_path": existing_file.get("thumbnail_path"),
+                "collection_id": existing_file.get("collection_id"),
+                "duplicate": True
+            }
+
         file_id = str(uuid.uuid4())
         file_type = self._determine_file_type(mime_type)
 
@@ -83,9 +100,6 @@ class DocumentService:
         # Save file
         async with aiofiles.open(storage_path, "wb") as f:
             await f.write(file_content)
-
-        file_size = len(file_content)
-        content_hash = hashlib.sha256(file_content).hexdigest()
 
         # Generate thumbnail for images
         thumbnail_path = None

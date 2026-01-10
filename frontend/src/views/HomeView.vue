@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useSearchStore } from '@/stores/search'
 import { useCollectionsStore } from '@/stores/collections'
+import PreviewModal from '@/components/PreviewModal.vue'
 
 const searchStore = useSearchStore()
 const collectionsStore = useCollectionsStore()
@@ -13,6 +14,19 @@ const searchType = ref('text')
 const selectedCollection = ref('')
 const fileType = ref('')
 const isDragging = ref(false)
+
+const showPreview = ref(false)
+const selectedDocument = ref(null)
+
+const openPreview = (result) => {
+  selectedDocument.value = result
+  showPreview.value = true
+}
+
+const closePreview = () => {
+  showPreview.value = false
+  selectedDocument.value = null
+}
 
 const isLoading = computed(() => searchStore.loading)
 const results = computed(() => searchStore.results)
@@ -233,6 +247,7 @@ const getFileUrl = (path) => {
           v-for="result in results"
           :key="result.id"
           class="group bg-bg-secondary border border-border rounded-lg overflow-hidden hover:border-accent transition-colors cursor-pointer"
+          @click="openPreview(result)"
         >
           <!-- Thumbnail -->
           <div class="aspect-square bg-bg-tertiary relative overflow-hidden">
@@ -271,6 +286,13 @@ const getFileUrl = (path) => {
       </svg>
       <p>テキストまたは画像で検索してください</p>
     </div>
+
+    <!-- Preview Modal -->
+    <PreviewModal
+      :show="showPreview"
+      :document="selectedDocument"
+      @close="closePreview"
+    />
   </div>
 </template>
 

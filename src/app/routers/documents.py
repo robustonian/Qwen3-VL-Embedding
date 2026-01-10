@@ -1,6 +1,8 @@
 import logging
 from typing import List, Optional
+from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from ..services.document import document_service
@@ -101,6 +103,29 @@ async def get_document(doc_id: str):
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     return doc
+
+@router.get("/{doc_id}/content")
+async def get_document_content(doc_id: str):
+    """Get text content of a document."""
+    doc = await document_service.get_document(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    file_path = Path(doc["file_path"])
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    # Only allow text files
+    if doc["file_type"] not in ["text", "document"]:
+        raise HTTPException(status_code=400, detail="Content only available for text/document files")
+
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        return {"content": content, "file_name": doc["file_name"]}
+    except Exception as e:
+        logger.error(f"Failed to read file content: {e}")
+        raise HTTPException(status_code=500, detail="Failed to read file")
 
 @router.delete("/{doc_id}")
 async def delete_document(doc_id: str):

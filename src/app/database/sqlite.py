@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS search_history (
 CREATE INDEX IF NOT EXISTS idx_files_file_type ON files(file_type);
 CREATE INDEX IF NOT EXISTS idx_files_created_at ON files(created_at);
 CREATE INDEX IF NOT EXISTS idx_files_collection_id ON files(collection_id);
+CREATE INDEX IF NOT EXISTS idx_files_content_hash ON files(content_hash);
 CREATE INDEX IF NOT EXISTS idx_collections_name ON collections(name);
 """
 
@@ -108,6 +109,11 @@ class SQLiteManager:
     async def get_file(self, file_id: str) -> Optional[Dict]:
         query = "SELECT * FROM files WHERE id = ?"
         return await self._fetch_one(query, (file_id,))
+
+    async def get_file_by_hash(self, content_hash: str) -> Optional[Dict]:
+        """Get a file by its content hash (for duplicate detection)."""
+        query = "SELECT * FROM files WHERE content_hash = ?"
+        return await self._fetch_one(query, (content_hash,))
 
     async def get_files(
         self,

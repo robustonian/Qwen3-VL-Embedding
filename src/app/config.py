@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     CHROMA_COLLECTION_NAME: str = "multimodal_embeddings"
 
     # Thumbnail settings
-    THUMBNAIL_SIZE: tuple = (256, 256)
-    THUMBNAIL_QUALITY: int = 80
+    THUMBNAIL_SIZE: tuple = (1024, 1024)
+    THUMBNAIL_QUALITY: int = 90
 
     # API settings
     API_PREFIX: str = "/api"
