@@ -1,14 +1,16 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useSearchStore } from '@/stores/search'
 import { useCollectionsStore } from '@/stores/collections'
 import { useDocumentsStore } from '@/stores/documents'
+import { useToastStore } from '@/stores/toast'
 import PreviewModal from '@/components/PreviewModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const searchStore = useSearchStore()
 const collectionsStore = useCollectionsStore()
 const documentsStore = useDocumentsStore()
+const toastStore = useToastStore()
 
 const searchQuery = ref('')
 const searchImage = ref(null)
@@ -17,6 +19,7 @@ const searchType = ref('text')
 const selectedCollection = ref('')
 const fileType = ref('')
 const isDragging = ref(false)
+const searchInputRef = ref(null)
 
 const showPreview = ref(false)
 const selectedDocument = ref(null)
@@ -43,9 +46,9 @@ const handleDeleteRequest = (id) => {
 const confirmDelete = async () => {
   if (deleteTargetId.value) {
     await documentsStore.deleteDocument(deleteTargetId.value)
-    // Remove from search results
     searchStore.removeResult(deleteTargetId.value)
     closePreview()
+    toastStore.success('ファイルを削除しました')
   }
   showDeleteConfirm.value = false
   deleteTargetId.value = null
@@ -125,10 +128,10 @@ const handleDragLeave = () => {
   isDragging.value = false
 }
 
-const getSimilarityClass = (score) => {
-  if (score >= 90) return 'similarity-high'
-  if (score >= 70) return 'similarity-medium'
-  return 'similarity-low'
+const getSimilarityLevel = (score) => {
+  if (score >= 90) return 'high'
+  if (score >= 70) return 'medium'
+  return 'low'
 }
 
 const getFileUrl = (path) => {
@@ -138,103 +141,144 @@ const getFileUrl = (path) => {
 }
 
 // Quick search suggestions
-const suggestions = ['風景', 'グラフ', '図面', 'テキスト']
+const suggestions = ['風景', 'グラフ', '図面', 'テキスト', 'ポートレート']
 
 const handleSuggestionClick = (suggestion) => {
   searchQuery.value = suggestion
   searchType.value = 'text'
   handleTextSearch()
 }
+
+// Focus search input on "/" key
+const handleFocusSearch = () => {
+  searchInputRef.value?.focus()
+}
+
+onMounted(() => {
+  window.addEventListener('focus-search', handleFocusSearch)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus-search', handleFocusSearch)
+})
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto">
+  <div id="main-content" class="max-w-6xl mx-auto">
     <!-- Search Section -->
-    <div class="mb-8">
-      <h1 class="text-2xl font-bold text-text-primary mb-6">マルチモーダル検索</h1>
+    <div class="mb-10">
+      <!-- Title with gradient -->
+      <div class="mb-8 text-center">
+        <h1 class="text-3xl font-display font-bold text-text-primary mb-2">
+          マルチモーダル<span class="text-gradient">検索</span>
+        </h1>
+        <p class="text-text-secondary">テキストまたは画像で類似ドキュメントを検索</p>
+      </div>
 
       <!-- Search Box with Glass Effect -->
       <div
-        class="search-box relative overflow-hidden rounded-2xl p-6 transition-all duration-300"
+        class="search-box relative overflow-hidden rounded-3xl transition-all duration-500"
         :class="{
-          'ring-2 ring-accent/50 shadow-glow-accent': isDragging,
+          'ring-2 ring-accent/50 shadow-glow-strong': isDragging,
           'shadow-glow-subtle': !isDragging
         }"
         @drop="handleDrop"
         @dragover="handleDragOver"
         @dragleave="handleDragLeave"
       >
-        <!-- Glass background -->
-        <div class="absolute inset-0 bg-gradient-to-br from-white/[0.08] via-white/[0.02] to-transparent backdrop-blur-xl"></div>
-        <div class="absolute inset-0 border border-white/10 rounded-2xl"></div>
+        <!-- Animated gradient background -->
+        <div class="absolute inset-0 bg-gradient-to-br from-bg-secondary via-bg-tertiary/50 to-bg-secondary"></div>
+        <div class="absolute inset-0 bg-gradient-to-tr from-accent/[0.03] via-transparent to-accent-warm/[0.02]"></div>
+
+        <!-- Noise texture -->
+        <div class="absolute inset-0 noise-overlay opacity-50"></div>
+
+        <!-- Border glow effect -->
+        <div class="absolute inset-0 rounded-3xl border border-white/10"></div>
 
         <!-- Content -->
-        <div class="relative z-10">
-          <!-- Search Type Tabs with Sliding Indicator -->
-          <div class="relative inline-flex gap-1 p-1 bg-bg-tertiary/50 rounded-xl mb-4">
-            <!-- Sliding Indicator -->
-            <div
-              class="absolute top-1 bottom-1 w-[130px] rounded-lg bg-accent transition-all duration-300 ease-smooth"
-              :style="{
-                left: searchType === 'text' ? '4px' : 'calc(130px + 8px)'
-              }"
-            ></div>
+        <div class="relative z-10 p-8">
+          <!-- Search Type Tabs -->
+          <div class="flex justify-center mb-6">
+            <div class="relative inline-flex gap-1 p-1.5 bg-bg-primary/50 backdrop-blur-sm rounded-2xl border border-border/30">
+              <!-- Sliding Indicator -->
+              <div
+                class="absolute top-1.5 bottom-1.5 w-[140px] rounded-xl bg-accent/20 border border-accent/30 transition-all duration-300 ease-smooth"
+                :style="{
+                  left: searchType === 'text' ? '6px' : 'calc(140px + 10px)'
+                }"
+              ></div>
 
-            <button
-              class="relative z-10 w-[130px] flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
-              :class="searchType === 'text' ? 'text-white' : 'text-text-secondary hover:text-text-primary'"
-              @click="searchType = 'text'; clearImage()"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-              </svg>
-              テキスト検索
-            </button>
-            <button
-              class="relative z-10 w-[130px] flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
-              :class="searchType === 'image' ? 'text-white' : 'text-text-secondary hover:text-text-primary'"
-              @click="searchType = 'image'"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              画像検索
-            </button>
+              <button
+                class="relative z-10 w-[140px] flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all duration-200"
+                :class="searchType === 'text' ? 'text-accent' : 'text-text-secondary hover:text-text-primary'"
+                @click="searchType = 'text'; clearImage()"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                </svg>
+                テキスト検索
+              </button>
+              <button
+                class="relative z-10 w-[140px] flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all duration-200"
+                :class="searchType === 'image' ? 'text-accent' : 'text-text-secondary hover:text-text-primary'"
+                @click="searchType = 'image'"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                画像検索
+              </button>
+            </div>
           </div>
 
           <!-- Text Search Input -->
           <div v-if="searchType === 'text'" class="space-y-4">
-            <div class="relative group">
-              <input
-                v-model="searchQuery"
-                type="text"
-                placeholder="検索キーワードを入力..."
-                class="w-full px-4 py-3.5 bg-bg-tertiary/50 border border-white/10 rounded-xl
-                       text-text-primary placeholder-text-muted/60
-                       focus:outline-none focus:bg-bg-tertiary/80 focus:border-accent/50
-                       focus:shadow-glow-input transition-all duration-300"
-                @keydown.enter="handleSearch"
-              />
-              <button
-                @click="handleSearch"
-                :disabled="isLoading || !searchQuery.trim()"
-                class="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-accent text-white rounded-lg
-                       hover:bg-accent-hover hover:shadow-lg hover:shadow-accent/25
-                       disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none
-                       active:scale-[0.98] transition-all duration-200"
-              >
-                検索
-              </button>
+            <div class="relative">
+              <!-- Input glow on focus -->
+              <div class="absolute -inset-0.5 bg-gradient-to-r from-accent/20 via-accent/5 to-accent/20 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+
+              <div class="relative group">
+                <input
+                  ref="searchInputRef"
+                  v-model="searchQuery"
+                  type="text"
+                  placeholder="検索キーワードを入力... (/ でフォーカス)"
+                  class="w-full px-5 py-4 bg-bg-primary/60 border border-border/50 rounded-2xl
+                         text-text-primary text-lg placeholder-text-muted/50
+                         focus:outline-none focus:bg-bg-primary/80 focus:border-accent/40 focus:shadow-glow-input
+                         transition-all duration-300"
+                  @keydown.enter="handleSearch"
+                />
+                <button
+                  @click="handleSearch"
+                  :disabled="isLoading || !searchQuery.trim()"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 px-6 py-2.5 bg-accent text-bg-primary font-medium rounded-xl
+                         hover:bg-accent-hover hover:shadow-glow-accent
+                         disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none
+                         active:scale-[0.98] transition-all duration-200"
+                >
+                  <span v-if="!isLoading">検索</span>
+                  <svg v-else class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
           <!-- Image Search Input -->
           <div v-else class="space-y-4">
             <div v-if="imagePreview" class="relative inline-block group">
-              <img :src="imagePreview" alt="検索画像" class="max-h-48 rounded-xl shadow-lg" />
+              <div class="relative rounded-2xl overflow-hidden shadow-card-elevated">
+                <img :src="imagePreview" alt="検索画像" class="max-h-56 rounded-2xl" />
+                <!-- Overlay gradient -->
+                <div class="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              </div>
               <button
                 @click="clearImage"
-                class="absolute -top-2 -right-2 w-7 h-7 bg-red-500 text-white rounded-full
+                class="absolute -top-2 -right-2 w-8 h-8 bg-error text-white rounded-full
                        flex items-center justify-center shadow-lg
                        hover:bg-red-600 hover:scale-110 active:scale-95 transition-all duration-200"
               >
@@ -244,8 +288,11 @@ const handleSuggestionClick = (suggestion) => {
               </button>
             </div>
 
-            <div v-else class="border-2 border-dashed border-white/10 rounded-xl p-8 text-center
-                            hover:border-accent/50 hover:bg-accent/5 transition-all duration-300 cursor-pointer">
+            <div
+              v-else
+              class="border-2 border-dashed border-border/50 rounded-2xl p-10 text-center
+                     hover:border-accent/50 hover:bg-accent/5 transition-all duration-300 cursor-pointer group"
+            >
               <input
                 type="file"
                 accept="image/*"
@@ -254,15 +301,17 @@ const handleSuggestionClick = (suggestion) => {
                 @change="handleImageSelect"
               />
               <label for="image-input" class="cursor-pointer block">
-                <div class="relative mx-auto w-16 h-16 mb-4">
+                <!-- Animated icon container -->
+                <div class="relative mx-auto w-20 h-20 mb-5">
                   <div class="absolute inset-0 rounded-full bg-accent/10 animate-ping-slow"></div>
-                  <div class="relative flex items-center justify-center w-full h-full rounded-full bg-bg-tertiary border border-white/10">
-                    <svg class="w-8 h-8 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div class="absolute inset-2 rounded-full bg-accent/5 animate-ping-slower"></div>
+                  <div class="relative flex items-center justify-center w-full h-full rounded-full bg-bg-tertiary/80 border border-border/50 group-hover:border-accent/30 transition-colors">
+                    <svg class="w-8 h-8 text-text-muted group-hover:text-accent transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </div>
                 </div>
-                <p class="text-text-secondary mb-1">画像をドラッグ&ドロップ</p>
+                <p class="text-text-primary font-medium mb-1">画像をドラッグ&ドロップ</p>
                 <p class="text-text-muted text-sm">またはクリックして選択</p>
               </label>
             </div>
@@ -271,20 +320,32 @@ const handleSuggestionClick = (suggestion) => {
               v-if="imagePreview"
               @click="handleSearch"
               :disabled="isLoading"
-              class="w-full px-4 py-3.5 bg-accent text-white rounded-xl font-medium
-                     hover:bg-accent-hover hover:shadow-lg hover:shadow-accent/25
+              class="w-full px-6 py-4 bg-accent text-bg-primary font-medium rounded-2xl
+                     hover:bg-accent-hover hover:shadow-glow-accent
                      disabled:opacity-50 disabled:cursor-not-allowed
                      active:scale-[0.99] transition-all duration-200"
             >
-              {{ isLoading ? '検索中...' : '画像で検索' }}
+              <span v-if="!isLoading" class="flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                画像で検索
+              </span>
+              <span v-else class="flex items-center justify-center gap-2">
+                <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                検索中...
+              </span>
             </button>
           </div>
 
           <!-- Filters -->
-          <div class="flex gap-4 mt-4 pt-4 border-t border-white/10">
+          <div class="flex flex-wrap gap-3 mt-6 pt-6 border-t border-border/30">
             <select
               v-model="selectedCollection"
-              class="px-3 py-2.5 bg-bg-tertiary/50 border border-white/10 rounded-xl
+              class="px-4 py-2.5 bg-bg-primary/50 border border-border/50 rounded-xl
                      text-text-secondary text-sm
                      focus:outline-none focus:border-accent/50 focus:shadow-glow-input
                      transition-all duration-200 cursor-pointer"
@@ -297,7 +358,7 @@ const handleSuggestionClick = (suggestion) => {
 
             <select
               v-model="fileType"
-              class="px-3 py-2.5 bg-bg-tertiary/50 border border-white/10 rounded-xl
+              class="px-4 py-2.5 bg-bg-primary/50 border border-border/50 rounded-xl
                      text-text-secondary text-sm
                      focus:outline-none focus:border-accent/50 focus:shadow-glow-input
                      transition-all duration-200 cursor-pointer"
@@ -312,60 +373,63 @@ const handleSuggestionClick = (suggestion) => {
     </div>
 
     <!-- Skeleton Loading -->
-    <div v-if="isLoading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div v-if="isLoading" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
       <div
         v-for="n in 8"
         :key="n"
-        class="skeleton-card bg-bg-secondary/80 border border-white/5 rounded-xl overflow-hidden"
-        :style="{ animationDelay: `${n * 100}ms` }"
+        class="skeleton-card bg-bg-secondary/60 border border-border/30 rounded-2xl overflow-hidden"
+        :style="{ animationDelay: `${n * 80}ms` }"
       >
-        <div class="aspect-square bg-bg-tertiary skeleton-shimmer"></div>
-        <div class="p-3 space-y-2">
-          <div class="h-4 bg-bg-tertiary rounded skeleton-shimmer w-3/4"></div>
-          <div class="h-3 bg-bg-tertiary rounded skeleton-shimmer w-1/2"></div>
+        <div class="aspect-square bg-bg-tertiary/50 skeleton-shimmer"></div>
+        <div class="p-4 space-y-3">
+          <div class="h-4 bg-bg-tertiary/50 rounded-lg skeleton-shimmer w-3/4"></div>
+          <div class="h-3 bg-bg-tertiary/50 rounded-lg skeleton-shimmer w-1/2"></div>
         </div>
       </div>
     </div>
 
     <!-- Results Section -->
     <div v-else-if="hasResults">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-medium text-text-primary">検索結果 ({{ results.length }}件)</h2>
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-display font-semibold text-text-primary">
+          検索結果 <span class="text-accent">({{ results.length }}件)</span>
+        </h2>
       </div>
 
       <TransitionGroup
         tag="div"
         name="stagger-grid"
-        class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+        class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5"
       >
         <div
           v-for="(result, index) in results"
           :key="result.id"
           :style="{ '--stagger-delay': `${index * 50}ms` }"
-          class="result-card group relative rounded-xl overflow-hidden cursor-pointer
-                 bg-bg-secondary/80 backdrop-blur-sm border border-white/5
-                 hover:border-accent/30 hover:shadow-card-hover hover:-translate-y-1
-                 transition-all duration-300 ease-out"
+          class="result-card group relative rounded-2xl overflow-hidden cursor-pointer card-3d
+                 bg-bg-secondary/60 backdrop-blur-sm border border-border/30
+                 hover:border-accent/40 hover:shadow-card-hover
+                 transition-all duration-300"
           @click="openPreview(result)"
         >
-          <!-- Hover glow background -->
-          <div class="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-transparent
+          <!-- Hover gradient overlay -->
+          <div class="absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-accent-warm/5
                       opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
 
           <!-- Shine sweep effect -->
-          <div class="absolute -inset-1 bg-gradient-to-r from-transparent via-white/5 to-transparent
+          <div class="shine-effect absolute -inset-1 bg-gradient-to-r from-transparent via-white/10 to-transparent
                       -translate-x-full group-hover:translate-x-full transition-transform duration-700
                       skew-x-12 pointer-events-none"></div>
 
           <!-- Content -->
           <div class="relative z-10">
             <!-- Thumbnail -->
-            <div class="aspect-square bg-bg-tertiary relative overflow-hidden">
-              <!-- Background blur for small images -->
+            <div class="aspect-square bg-bg-tertiary/50 relative overflow-hidden">
+              <!-- Blurred background for context -->
               <img
                 v-if="result.metadata?.thumbnail_path"
                 :src="getFileUrl(result.metadata.thumbnail_path)"
-                class="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-30"
+                class="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-30"
+                aria-hidden="true"
               />
 
               <!-- Main image -->
@@ -374,7 +438,7 @@ const handleSuggestionClick = (suggestion) => {
                 :src="getFileUrl(result.metadata.thumbnail_path)"
                 :alt="result.metadata?.file_name"
                 class="relative w-full h-full object-contain
-                       group-hover:scale-105 transition-transform duration-500 ease-out"
+                       group-hover:scale-105 transition-transform duration-500 ease-smooth"
               />
               <div v-else class="w-full h-full flex items-center justify-center text-text-muted">
                 <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -382,29 +446,34 @@ const handleSuggestionClick = (suggestion) => {
                 </svg>
               </div>
 
-              <!-- Hover overlay with action -->
-              <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent
+              <!-- Hover action hint -->
+              <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent
                           opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div class="absolute bottom-2 left-2 right-2 flex items-center justify-center">
-                  <span class="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm text-white text-xs font-medium
-                              translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100
+                <div class="absolute bottom-3 left-3 right-3 flex items-center justify-center">
+                  <span class="px-4 py-2 rounded-xl bg-white/10 backdrop-blur-md text-white text-sm font-medium
+                              translate-y-3 opacity-0 group-hover:translate-y-0 group-hover:opacity-100
                               transition-all duration-300 delay-100">
-                    クリックでプレビュー
+                    プレビューを開く
                   </span>
                 </div>
               </div>
 
-              <!-- Similarity Badge -->
-              <div
-                :class="['similarity-badge absolute top-2 right-2', getSimilarityClass(result.similarity)]"
-              >
-                {{ result.similarity.toFixed(1) }}%
+              <!-- Similarity Badge - Circular progress style -->
+              <div class="absolute top-3 right-3">
+                <div
+                  :class="[
+                    'similarity-ring relative w-12 h-12 rounded-full flex items-center justify-center',
+                    `similarity-${getSimilarityLevel(result.similarity)}`
+                  ]"
+                >
+                  <span class="text-xs font-bold text-white">{{ Math.round(result.similarity) }}</span>
+                </div>
               </div>
             </div>
 
             <!-- Info -->
-            <div class="p-3">
-              <p class="text-sm text-text-primary truncate">{{ result.metadata?.file_name }}</p>
+            <div class="p-4">
+              <p class="text-sm font-medium text-text-primary truncate mb-1">{{ result.metadata?.file_name }}</p>
               <p class="text-xs text-text-muted">{{ result.metadata?.file_type }}</p>
             </div>
           </div>
@@ -413,21 +482,30 @@ const handleSuggestionClick = (suggestion) => {
     </div>
 
     <!-- Empty State -->
-    <div v-else class="empty-state text-center py-16">
-      <!-- Animated icon -->
-      <div class="relative mx-auto w-24 h-24 mb-6">
-        <div class="absolute inset-0 rounded-full bg-accent/10 animate-ping-slow"></div>
-        <div class="absolute inset-2 rounded-full bg-accent/5 animate-ping-slower"></div>
-        <div class="relative flex items-center justify-center w-full h-full rounded-full bg-bg-tertiary border border-white/10">
-          <svg class="w-10 h-10 text-text-muted animate-float" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    <div v-else class="empty-state text-center py-20">
+      <!-- Animated orbital icon -->
+      <div class="relative mx-auto w-28 h-28 mb-8">
+        <!-- Orbit rings -->
+        <div class="absolute inset-0 rounded-full border border-accent/20"></div>
+        <div class="absolute inset-3 rounded-full border border-accent/10"></div>
+
+        <!-- Orbiting dot -->
+        <div class="absolute inset-0 animate-orbit">
+          <div class="w-2 h-2 rounded-full bg-accent shadow-glow-accent"></div>
+        </div>
+
+        <!-- Center icon -->
+        <div class="absolute inset-4 rounded-full bg-bg-tertiary/80 border border-border/50 flex items-center justify-center">
+          <svg class="w-10 h-10 text-text-muted animate-float-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
       </div>
 
-      <h3 class="text-lg font-medium text-text-primary mb-2">検索を始めましょう</h3>
-      <p class="text-text-muted max-w-sm mx-auto mb-6">
-        テキストまたは画像で類似ドキュメントを検索できます
+      <h3 class="text-xl font-display font-semibold text-text-primary mb-3">検索を始めましょう</h3>
+      <p class="text-text-secondary max-w-md mx-auto mb-8">
+        テキストまたは画像で類似ドキュメントを検索できます。<br>
+        キーボードショートカット <kbd class="px-2 py-1 bg-bg-tertiary rounded text-xs font-mono text-text-muted">/</kbd> で検索にフォーカス
       </p>
 
       <!-- Suggestion tags -->
@@ -435,9 +513,9 @@ const handleSuggestionClick = (suggestion) => {
         <button
           v-for="suggestion in suggestions"
           :key="suggestion"
-          class="px-4 py-2 text-sm bg-bg-tertiary/50 backdrop-blur-sm border border-white/10
-                 hover:bg-accent/20 hover:border-accent/30 text-text-secondary hover:text-accent
-                 rounded-full transition-all duration-200"
+          class="px-5 py-2.5 text-sm bg-bg-tertiary/50 backdrop-blur-sm border border-border/30
+                 hover:bg-accent/10 hover:border-accent/40 text-text-secondary hover:text-accent
+                 rounded-xl transition-all duration-200 hover:shadow-glow-accent/20"
           @click="handleSuggestionClick(suggestion)"
         >
           {{ suggestion }}
@@ -469,26 +547,45 @@ const handleSuggestionClick = (suggestion) => {
 
 <style scoped>
 .search-box {
-  background: linear-gradient(135deg, rgba(26, 26, 26, 0.9) 0%, rgba(15, 15, 15, 0.95) 100%);
+  background: linear-gradient(145deg, rgba(18, 18, 26, 0.95) 0%, rgba(10, 10, 11, 0.98) 100%);
 }
 
 .skeleton-card {
   animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-.similarity-badge {
-  @apply px-2.5 py-1 rounded-lg text-xs font-semibold backdrop-blur-sm;
+/* Similarity ring styles */
+.similarity-ring {
+  @apply backdrop-blur-sm;
+}
+
+.similarity-ring::before {
+  content: '';
+  @apply absolute inset-0 rounded-full;
 }
 
 .similarity-high {
-  @apply bg-gradient-to-r from-emerald-500/90 to-green-500/90 text-white shadow-lg shadow-green-500/20;
+  background: linear-gradient(135deg, rgba(0, 214, 143, 0.9) 0%, rgba(0, 168, 120, 0.9) 100%);
+  box-shadow: 0 0 20px rgba(0, 214, 143, 0.4);
 }
 
 .similarity-medium {
-  @apply bg-gradient-to-r from-amber-500/90 to-yellow-500/90 text-black shadow-lg shadow-yellow-500/20;
+  background: linear-gradient(135deg, rgba(255, 170, 0, 0.9) 0%, rgba(245, 166, 35, 0.9) 100%);
+  box-shadow: 0 0 20px rgba(255, 170, 0, 0.4);
 }
 
 .similarity-low {
-  @apply bg-gradient-to-r from-red-500/90 to-rose-500/90 text-white shadow-lg shadow-red-500/20;
+  background: linear-gradient(135deg, rgba(255, 90, 90, 0.9) 0%, rgba(220, 60, 60, 0.9) 100%);
+  box-shadow: 0 0 20px rgba(255, 90, 90, 0.4);
+}
+
+/* Shine effect */
+.shine-effect {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
 }
 </style>

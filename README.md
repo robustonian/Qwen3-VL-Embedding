@@ -253,15 +253,29 @@ response = requests.post("http://localhost:8000/v1/embeddings", json={
 
 ## Web Frontend
 
-A Vue.js-based web application for multimodal image search and library management.
+A Vue.js-based web application for multimodal image search and library management with a modern, polished UI.
 
 ### Features
 
-- **Multimodal Search**: Search images using text, image, or mixed inputs
-- **Library Management**: Upload, preview, and manage your image collection
+- **Multimodal Search**: Search images using text, image, or mixed inputs with real-time similarity scores
+- **Library Management**: Upload, preview, and manage your image collection with drag-and-drop support
+- **Collections**: Organize images into custom collections for better organization
 - **Batch Operations**: Select multiple files and delete them at once
-- **Responsive Design**: Dark theme with adaptive grid layout
-- **Preview Modal**: Click thumbnails to view full-size images
+- **Modern UI/UX**:
+  - Glassmorphism design with teal/cyan accent colors
+  - Smooth animations and transitions throughout
+  - Toast notifications for user feedback
+  - Keyboard shortcuts (`/` or `Cmd+K` for quick search, `ESC` to close modals)
+  - Image zoom functionality in preview modal (`Z` key or click)
+  - Responsive dark theme with adaptive grid layout
+
+### Tech Stack
+
+- **Framework**: Vue 3 with Composition API
+- **Build Tool**: Vite 5
+- **Styling**: Tailwind CSS 3.4
+- **State Management**: Pinia
+- **Fonts**: Outfit, Plus Jakarta Sans, IBM Plex Mono
 
 ### Quick Start
 

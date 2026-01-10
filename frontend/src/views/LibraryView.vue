@@ -2,11 +2,13 @@
 import { ref, onMounted, computed } from 'vue'
 import { useDocumentsStore } from '@/stores/documents'
 import { useCollectionsStore } from '@/stores/collections'
+import { useToastStore } from '@/stores/toast'
 import PreviewModal from '@/components/PreviewModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const documentsStore = useDocumentsStore()
 const collectionsStore = useCollectionsStore()
+const toastStore = useToastStore()
 
 const showUploadModal = ref(false)
 const uploadFiles = ref([])
@@ -74,10 +76,12 @@ const handleBatchDeleteRequest = () => {
 const confirmDelete = async () => {
   if (isBatchDelete.value) {
     await documentsStore.deleteDocuments(Array.from(selectedIds.value))
+    toastStore.success(`${deleteTargetCount.value}件のファイルを削除しました`)
     selectedIds.value = new Set()
     isSelectionMode.value = false
   } else if (deleteTargetId.value) {
     await documentsStore.deleteDocument(deleteTargetId.value)
+    toastStore.success('ファイルを削除しました')
     closePreview()
   }
   await documentsStore.fetchStats()
@@ -163,9 +167,11 @@ const handleUpload = async () => {
       uploadProgress.value = Math.round(((i + 1) / uploadFiles.value.length) * 100)
     } catch (error) {
       console.error('Upload failed:', error)
+      toastStore.error('アップロードに失敗しました')
     }
   }
 
+  toastStore.success(`${uploadFiles.value.length}件のファイルをアップロードしました`)
   isUploading.value = false
   uploadFiles.value = []
   showUploadModal.value = false
@@ -204,17 +210,18 @@ const changePage = (page) => {
 <template>
   <div class="max-w-6xl mx-auto">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-text-primary">ライブラリ</h1>
-      <div class="flex items-center gap-2">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-display font-bold text-text-primary">ライブラリ</h1>
+        <p class="text-text-secondary text-sm mt-1">アップロードされたファイルを管理</p>
+      </div>
+      <div class="flex items-center gap-3">
         <button
           v-if="documents.length > 0"
           @click="toggleSelectionMode"
           :class="[
-            'flex items-center gap-2 px-4 py-2 rounded-lg transition-colors',
-            isSelectionMode
-              ? 'bg-accent text-white'
-              : 'bg-bg-tertiary text-text-secondary hover:bg-bg-primary'
+            'btn flex items-center gap-2',
+            isSelectionMode ? 'btn-primary' : 'btn-secondary'
           ]"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -224,7 +231,7 @@ const changePage = (page) => {
         </button>
         <button
           @click="showUploadModal = true"
-          class="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
+          class="btn btn-primary flex items-center gap-2"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -238,11 +245,11 @@ const changePage = (page) => {
     <Transition name="slide">
       <div
         v-if="isSelectionMode"
-        class="flex items-center justify-between mb-4 p-3 bg-bg-secondary border border-border rounded-lg"
+        class="flex items-center justify-between mb-6 p-4 bg-bg-secondary/80 backdrop-blur-sm border border-border/50 rounded-2xl"
       >
         <div class="flex items-center gap-4">
-          <span class="text-text-secondary">
-            {{ selectedCount }}件選択中
+          <span class="text-text-secondary font-medium">
+            <span class="text-accent">{{ selectedCount }}</span> 件選択中
           </span>
           <button
             @click="selectAll"
@@ -262,7 +269,7 @@ const changePage = (page) => {
           <button
             @click="handleBatchDeleteRequest"
             :disabled="selectedCount === 0"
-            class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            class="btn btn-danger flex items-center gap-2"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -271,7 +278,7 @@ const changePage = (page) => {
           </button>
           <button
             @click="toggleSelectionMode"
-            class="px-4 py-2 bg-bg-tertiary text-text-secondary rounded-lg hover:bg-bg-primary transition-colors"
+            class="btn btn-ghost"
           >
             キャンセル
           </button>
@@ -280,20 +287,29 @@ const changePage = (page) => {
     </Transition>
 
     <!-- Loading State -->
-    <div v-if="isLoading && !documents.length" class="text-center py-12">
-      <div class="inline-block w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
-      <p class="text-text-muted mt-4">読み込み中...</p>
+    <div v-if="isLoading && !documents.length" class="flex flex-col items-center justify-center py-20">
+      <div class="relative w-16 h-16 mb-4">
+        <div class="absolute inset-0 rounded-full border-2 border-accent/20"></div>
+        <div class="absolute inset-0 rounded-full border-2 border-accent border-t-transparent animate-spin"></div>
+      </div>
+      <p class="text-text-muted">読み込み中...</p>
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="!documents.length" class="text-center py-12">
-      <svg class="w-16 h-16 mx-auto mb-4 text-text-muted opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-      </svg>
-      <p class="text-text-muted mb-4">ファイルがありません</p>
+    <div v-else-if="!documents.length" class="text-center py-20">
+      <div class="relative mx-auto w-24 h-24 mb-6">
+        <div class="absolute inset-0 rounded-full bg-accent/5 animate-pulse"></div>
+        <div class="relative flex items-center justify-center w-full h-full rounded-full bg-bg-tertiary/80 border border-border/50">
+          <svg class="w-10 h-10 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+        </div>
+      </div>
+      <h3 class="text-lg font-display font-semibold text-text-primary mb-2">ファイルがありません</h3>
+      <p class="text-text-muted mb-6">最初のファイルをアップロードしましょう</p>
       <button
         @click="showUploadModal = true"
-        class="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
+        class="btn btn-primary"
       >
         ファイルをアップロード
       </button>
@@ -301,25 +317,31 @@ const changePage = (page) => {
 
     <!-- Documents Grid -->
     <div v-else>
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      <TransitionGroup
+        tag="div"
+        name="stagger-grid"
+        class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5"
+      >
         <div
-          v-for="doc in documents"
+          v-for="(doc, index) in documents"
           :key="doc.id"
+          :style="{ '--stagger-delay': `${index * 40}ms` }"
           :class="[
-            'group bg-bg-secondary border rounded-lg overflow-hidden transition-colors cursor-pointer',
+            'group relative rounded-2xl overflow-hidden cursor-pointer',
+            'bg-bg-secondary/60 backdrop-blur-sm border transition-all duration-300',
             isSelected(doc.id)
-              ? 'border-accent ring-2 ring-accent/50'
-              : 'border-border hover:border-accent'
+              ? 'border-accent ring-2 ring-accent/30 shadow-glow-accent'
+              : 'border-border/30 hover:border-accent/40 hover:shadow-card-hover hover:-translate-y-1'
           ]"
           @click="handleCardClick(doc)"
         >
           <!-- Thumbnail -->
-          <div class="aspect-square bg-bg-tertiary relative overflow-hidden">
+          <div class="aspect-square bg-bg-tertiary/50 relative overflow-hidden">
             <img
               v-if="doc.thumbnail_path"
               :src="getFileUrl(doc.thumbnail_path)"
               :alt="doc.file_name"
-              class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+              class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 ease-smooth"
             />
             <div v-else class="w-full h-full flex items-center justify-center text-text-muted">
               <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -328,40 +350,43 @@ const changePage = (page) => {
             </div>
 
             <!-- Selection Checkbox -->
-            <div
-              v-if="isSelectionMode"
-              class="absolute top-2 left-2 z-10"
-              @click.stop="toggleSelect(doc.id)"
-            >
+            <Transition name="scale">
               <div
-                :class="[
-                  'w-6 h-6 rounded border-2 flex items-center justify-center transition-colors',
-                  isSelected(doc.id)
-                    ? 'bg-accent border-accent'
-                    : 'bg-black/50 border-white/50 hover:border-white'
-                ]"
+                v-if="isSelectionMode"
+                class="absolute top-3 left-3 z-10"
+                @click.stop="toggleSelect(doc.id)"
               >
-                <svg
-                  v-if="isSelected(doc.id)"
-                  class="w-4 h-4 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                <div
+                  :class="[
+                    'w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all duration-200',
+                    isSelected(doc.id)
+                      ? 'bg-accent border-accent scale-110'
+                      : 'bg-black/40 backdrop-blur-sm border-white/40 hover:border-white/60'
+                  ]"
                 >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                </svg>
+                  <Transition name="scale">
+                    <svg
+                      v-if="isSelected(doc.id)"
+                      class="w-4 h-4 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </Transition>
+                </div>
               </div>
-            </div>
+            </Transition>
 
-            <!-- Actions (hidden in selection mode) -->
+            <!-- Hover Actions (hidden in selection mode) -->
             <div
               v-if="!isSelectionMode"
-              class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2"
-              @click="openPreview(doc)"
+              class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center gap-3"
             >
               <button
-                @click="openPreview(doc)"
-                class="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
+                @click.stop="openPreview(doc)"
+                class="p-3 bg-white/15 backdrop-blur-sm rounded-xl hover:bg-white/25 transition-colors transform translate-y-2 group-hover:translate-y-0 delay-75"
                 title="プレビュー"
               >
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -371,7 +396,7 @@ const changePage = (page) => {
               </button>
               <button
                 @click.stop="handleDeleteRequest(doc.id)"
-                class="p-2 bg-red-500/80 rounded-full hover:bg-red-500 transition-colors"
+                class="p-3 bg-error/80 backdrop-blur-sm rounded-xl hover:bg-error transition-colors transform translate-y-2 group-hover:translate-y-0 delay-100"
                 title="削除"
               >
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -382,152 +407,184 @@ const changePage = (page) => {
           </div>
 
           <!-- Info -->
-          <div class="p-3">
-            <p class="text-sm text-text-primary truncate" :title="doc.file_name">{{ doc.file_name }}</p>
-            <div class="flex items-center justify-between mt-1">
+          <div class="p-4">
+            <p class="text-sm font-medium text-text-primary truncate mb-1" :title="doc.file_name">
+              {{ doc.file_name }}
+            </p>
+            <div class="flex items-center justify-between">
               <span class="text-xs text-text-muted">{{ formatDate(doc.created_at) }}</span>
-              <span class="text-xs text-text-muted">{{ formatFileSize(doc.file_size) }}</span>
+              <span class="text-xs text-text-muted font-mono">{{ formatFileSize(doc.file_size) }}</span>
             </div>
           </div>
         </div>
-      </div>
+      </TransitionGroup>
 
       <!-- Pagination -->
-      <div v-if="totalPages > 1" class="flex items-center justify-center gap-2 mt-6">
+      <div v-if="totalPages > 1" class="flex items-center justify-center gap-3 mt-10">
         <button
           @click="changePage(currentPage - 1)"
           :disabled="currentPage === 1"
-          class="px-3 py-1 bg-bg-secondary border border-border rounded hover:bg-bg-tertiary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="btn btn-ghost px-4"
         >
-          前へ
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
         </button>
-        <span class="text-text-secondary">{{ currentPage }} / {{ totalPages }}</span>
+
+        <div class="flex items-center gap-2">
+          <span class="text-text-secondary">
+            <span class="font-medium text-text-primary">{{ currentPage }}</span>
+            <span class="text-text-muted mx-1">/</span>
+            <span>{{ totalPages }}</span>
+          </span>
+        </div>
+
         <button
           @click="changePage(currentPage + 1)"
           :disabled="currentPage === totalPages"
-          class="px-3 py-1 bg-bg-secondary border border-border rounded hover:bg-bg-tertiary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="btn btn-ghost px-4"
         >
-          次へ
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
         </button>
       </div>
     </div>
 
     <!-- Upload Modal -->
     <Teleport to="body">
-      <Transition name="fade">
+      <Transition name="modal">
         <div
           v-if="showUploadModal"
-          class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           @click.self="showUploadModal = false"
         >
-          <div class="w-full max-w-lg bg-bg-secondary border border-border rounded-xl shadow-2xl">
-            <!-- Header -->
-            <div class="flex items-center justify-between p-4 border-b border-border">
-              <h3 class="text-lg font-medium text-text-primary">ファイルアップロード</h3>
-              <button
-                @click="showUploadModal = false"
-                class="p-1 hover:bg-bg-tertiary rounded transition-colors"
-              >
-                <svg class="w-5 h-5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+          <div class="modal-content w-full max-w-lg">
+            <div class="relative">
+              <!-- Glow effect -->
+              <div class="absolute -inset-0.5 bg-gradient-to-r from-accent/20 via-accent/5 to-accent/20 rounded-3xl blur-lg opacity-50"></div>
 
-            <!-- Content -->
-            <div class="p-4 space-y-4">
-              <!-- Drop Zone -->
-              <div
-                :class="[
-                  'border-2 border-dashed rounded-lg p-8 text-center transition-colors',
-                  isDragging ? 'border-accent bg-accent/10' : 'border-border hover:border-accent'
-                ]"
-                @drop="handleDrop"
-                @dragover.prevent="isDragging = true"
-                @dragleave="isDragging = false"
-              >
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf"
-                  class="hidden"
-                  id="file-input"
-                  @change="handleFileSelect"
-                />
-                <label for="file-input" class="cursor-pointer">
-                  <svg class="w-12 h-12 mx-auto text-text-muted mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  <p class="text-text-secondary mb-1">ファイルをドラッグ＆ドロップ</p>
-                  <p class="text-text-muted text-sm">またはクリックして選択</p>
-                </label>
-              </div>
-
-              <!-- Collection Select -->
-              <div>
-                <label class="block text-sm font-medium text-text-secondary mb-1">コレクション（任意）</label>
-                <select
-                  v-model="uploadCollection"
-                  class="w-full px-3 py-2 bg-bg-tertiary border border-border rounded-lg text-text-secondary focus:outline-none focus:border-accent"
-                >
-                  <option value="">コレクションなし</option>
-                  <option v-for="col in collectionsStore.collections" :key="col.id" :value="col.id">
-                    {{ col.name }}
-                  </option>
-                </select>
-              </div>
-
-              <!-- File List -->
-              <div v-if="uploadFiles.length > 0" class="space-y-2 max-h-48 overflow-auto">
-                <div
-                  v-for="(file, index) in uploadFiles"
-                  :key="index"
-                  class="flex items-center justify-between p-2 bg-bg-tertiary rounded"
-                >
-                  <div class="flex items-center gap-2 min-w-0">
-                    <svg class="w-4 h-4 text-text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span class="text-sm text-text-secondary truncate">{{ file.name }}</span>
-                  </div>
+              <div class="relative bg-bg-secondary border border-border/50 rounded-3xl shadow-2xl overflow-hidden">
+                <!-- Header -->
+                <div class="flex items-center justify-between p-6 border-b border-border/30">
+                  <h3 class="text-lg font-display font-semibold text-text-primary">ファイルアップロード</h3>
                   <button
-                    @click="removeFile(index)"
-                    class="p-1 hover:bg-bg-primary rounded text-text-muted hover:text-red-500 transition-colors"
+                    @click="showUploadModal = false"
+                    class="p-2 hover:bg-bg-tertiary rounded-xl transition-colors"
                   >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-5 h-5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
-              </div>
 
-              <!-- Progress -->
-              <div v-if="isUploading" class="space-y-2">
-                <div class="h-2 bg-bg-tertiary rounded-full overflow-hidden">
+                <!-- Content -->
+                <div class="p-6 space-y-5">
+                  <!-- Drop Zone -->
                   <div
-                    class="h-full bg-accent transition-all duration-300"
-                    :style="{ width: uploadProgress + '%' }"
-                  ></div>
-                </div>
-                <p class="text-sm text-text-muted text-center">{{ uploadProgress }}% 完了</p>
-              </div>
-            </div>
+                    :class="[
+                      'border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-300 cursor-pointer',
+                      isDragging
+                        ? 'border-accent bg-accent/10 scale-[1.02]'
+                        : 'border-border/50 hover:border-accent/50 hover:bg-accent/5'
+                    ]"
+                    @drop="handleDrop"
+                    @dragover.prevent="isDragging = true"
+                    @dragleave="isDragging = false"
+                  >
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*,.pdf"
+                      class="hidden"
+                      id="file-input"
+                      @change="handleFileSelect"
+                    />
+                    <label for="file-input" class="cursor-pointer">
+                      <div class="relative mx-auto w-16 h-16 mb-4">
+                        <div class="absolute inset-0 rounded-full bg-accent/10 animate-ping-slow"></div>
+                        <div class="relative flex items-center justify-center w-full h-full rounded-full bg-bg-tertiary border border-border/50">
+                          <svg class="w-7 h-7 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                        </div>
+                      </div>
+                      <p class="text-text-primary font-medium mb-1">ファイルをドラッグ&ドロップ</p>
+                      <p class="text-text-muted text-sm">またはクリックして選択</p>
+                    </label>
+                  </div>
 
-            <!-- Footer -->
-            <div class="flex justify-end gap-2 p-4 border-t border-border">
-              <button
-                @click="showUploadModal = false"
-                class="px-4 py-2 bg-bg-tertiary text-text-secondary rounded-lg hover:bg-bg-primary transition-colors"
-              >
-                キャンセル
-              </button>
-              <button
-                @click="handleUpload"
-                :disabled="uploadFiles.length === 0 || isUploading"
-                class="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {{ isUploading ? 'アップロード中...' : 'アップロード' }}
-              </button>
+                  <!-- Collection Select -->
+                  <div>
+                    <label class="block text-sm font-medium text-text-secondary mb-2">コレクション（任意）</label>
+                    <select
+                      v-model="uploadCollection"
+                      class="input"
+                    >
+                      <option value="">コレクションなし</option>
+                      <option v-for="col in collectionsStore.collections" :key="col.id" :value="col.id">
+                        {{ col.name }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <!-- File List -->
+                  <div v-if="uploadFiles.length > 0" class="space-y-2 max-h-40 overflow-auto scrollbar-hidden">
+                    <TransitionGroup name="list">
+                      <div
+                        v-for="(file, index) in uploadFiles"
+                        :key="file.name + index"
+                        class="flex items-center justify-between p-3 bg-bg-tertiary/50 border border-border/30 rounded-xl"
+                      >
+                        <div class="flex items-center gap-3 min-w-0">
+                          <div class="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <span class="text-sm text-text-secondary truncate">{{ file.name }}</span>
+                        </div>
+                        <button
+                          @click="removeFile(index)"
+                          class="p-1.5 hover:bg-bg-hover rounded-lg text-text-muted hover:text-error transition-colors"
+                        >
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </TransitionGroup>
+                  </div>
+
+                  <!-- Progress -->
+                  <div v-if="isUploading" class="space-y-2">
+                    <div class="h-2 bg-bg-tertiary rounded-full overflow-hidden">
+                      <div
+                        class="h-full bg-gradient-to-r from-accent to-accent-hover transition-all duration-500 ease-smooth"
+                        :style="{ width: uploadProgress + '%' }"
+                      ></div>
+                    </div>
+                    <p class="text-sm text-text-muted text-center">{{ uploadProgress }}% 完了</p>
+                  </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="flex justify-end gap-3 p-6 border-t border-border/30 bg-bg-tertiary/30">
+                  <button
+                    @click="showUploadModal = false"
+                    class="btn btn-ghost"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    @click="handleUpload"
+                    :disabled="uploadFiles.length === 0 || isUploading"
+                    class="btn btn-primary"
+                  >
+                    {{ isUploading ? 'アップロード中...' : 'アップロード' }}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -557,24 +614,71 @@ const changePage = (page) => {
 </template>
 
 <style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
 .slide-enter-active,
 .slide-leave-active {
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .slide-enter-from,
 .slide-leave-to {
   opacity: 0;
   transform: translateY(-10px);
+}
+
+.scale-enter-active,
+.scale-leave-active {
+  transition: all 0.2s ease;
+}
+
+.scale-enter-from,
+.scale-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.3s ease;
+}
+
+.list-enter-from {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.modal-enter-active {
+  transition: opacity 0.2s ease-out;
+}
+
+.modal-leave-active {
+  transition: opacity 0.15s ease-in;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-active .modal-content {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease-out;
+}
+
+.modal-leave-active .modal-content {
+  transition: transform 0.15s ease-in, opacity 0.15s ease-in;
+}
+
+.modal-enter-from .modal-content {
+  opacity: 0;
+  transform: scale(0.95) translateY(10px);
+}
+
+.modal-leave-to .modal-content {
+  opacity: 0;
+  transform: scale(0.98);
 }
 </style>
