@@ -55,7 +55,7 @@ const handleUpload = async () => {
 
   for (let i = 0; i < uploadFiles.value.length; i++) {
     try {
-      await documentsStore.uploadDocument(uploadFiles.value[i], uploadCollection.value || undefined)
+      await documentsStore.uploadFiles([uploadFiles.value[i]], uploadCollection.value || undefined)
       uploadProgress.value = Math.round(((i + 1) / uploadFiles.value.length) * 100)
     } catch (error) {
       console.error('Upload failed:', error)

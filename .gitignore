@@ -24,3 +24,8 @@ frontend/.vite/
 # Application data
 /data/uploads/
 /data/db/
+
+# Environment files
+.env
+.env.local
+.env.*.local

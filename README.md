@@ -159,8 +159,28 @@ python api_server.py
 # Custom configuration
 python api_server.py --host 127.0.0.1 --port 9000 --model-path ./models/Qwen3-VL-Embedding-2B
 
+# Using serve.sh (loads .env automatically)
+bash serve.sh
+
 # View all options
 python api_server.py --help
+```
+
+**Environment Configuration (`.env`):**
+
+Copy `.env.example` to `.env` and customize:
+```bash
+cp .env.example .env
+```
+
+```env
+# Backend API Server
+API_HOST=0.0.0.0
+API_PORT=8000
+MODEL_PATH=./models/Qwen3-VL-Embedding-2B
+
+# Frontend proxy target
+VITE_API_PORT=8000
 ```
 
 **Test the API:**

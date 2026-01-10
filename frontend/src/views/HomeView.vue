@@ -237,9 +237,9 @@ const getFileUrl = (path) => {
           <!-- Thumbnail -->
           <div class="aspect-square bg-bg-tertiary relative overflow-hidden">
             <img
-              v-if="result.thumbnail_path"
-              :src="getFileUrl(result.thumbnail_path)"
-              :alt="result.file_name"
+              v-if="result.metadata?.thumbnail_path"
+              :src="getFileUrl(result.metadata.thumbnail_path)"
+              :alt="result.metadata?.file_name"
               class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             />
             <div v-else class="w-full h-full flex items-center justify-center text-text-muted">
@@ -258,8 +258,8 @@ const getFileUrl = (path) => {
 
           <!-- Info -->
           <div class="p-3">
-            <p class="text-sm text-text-primary truncate">{{ result.file_name }}</p>
-            <p class="text-xs text-text-muted">{{ result.file_type }}</p>
+            <p class="text-sm text-text-primary truncate">{{ result.metadata?.file_name }}</p>
+            <p class="text-xs text-text-muted">{{ result.metadata?.file_type }}</p>
           </div>
         </div>
       </div>

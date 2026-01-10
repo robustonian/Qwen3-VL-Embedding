@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 MODEL_NAME = "qwen3-vl-embedding"
 
 class EmbeddingRequest(BaseModel):
-    input: Union[str, List[Union[str, Dict[str, Any]]]]
+    input: Union[str, Dict[str, Any], List[Union[str, Dict[str, Any]]]]
     model: str = Field(default=MODEL_NAME)
     encoding_format: str = Field(default="float")
     dimensions: Optional[int] = Field(default=None)
@@ -167,6 +167,8 @@ class APIServer:
     def create_embeddings(self, request: EmbeddingRequest) -> EmbeddingResponse:
         try:
             if isinstance(request.input, str):
+                inputs = [request.input]
+            elif isinstance(request.input, dict):
                 inputs = [request.input]
             elif isinstance(request.input, list):
                 inputs = request.input
