@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6"/>
+      <stop offset="100%" style="stop-color:#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="16" cy="16" r="15" fill="url(#grad)"/>
+  <!-- Search magnifying glass -->
+  <circle cx="13" cy="13" r="6" fill="none" stroke="white" stroke-width="2.5"/>
+  <line x1="17.5" y1="17.5" x2="24" y2="24" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Image icon in lens -->
+  <path d="M10 14.5l1.5-2 1.5 1.5 2-2.5 2 3" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Small dot for sun/corner -->
+  <circle cx="11" cy="11" r="1" fill="white"/>
+</svg>
