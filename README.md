@@ -25,6 +25,7 @@
 - [Model Architecture](#model-architecture)
 - [Installation](#installation)
 - [API Server](#api-server)
+- [Web Frontend](#web-frontend)
 - [Usage](#usage)
 - [Examples](#examples)
 - [Model Performance](#model-performance)
@@ -249,6 +250,39 @@ response = requests.post("http://localhost:8000/v1/embeddings", json={
 | `--host` | Host to bind the server | `0.0.0.0` |
 | `--port` | Port to bind the server | `8000` |
 | `--log-level` | Log level (DEBUG/INFO/WARNING/ERROR) | `INFO` |
+
+## Web Frontend
+
+A Vue.js-based web application for multimodal image search and library management.
+
+### Features
+
+- **Multimodal Search**: Search images using text, image, or mixed inputs
+- **Library Management**: Upload, preview, and manage your image collection
+- **Batch Operations**: Select multiple files and delete them at once
+- **Responsive Design**: Dark theme with adaptive grid layout
+- **Preview Modal**: Click thumbnails to view full-size images
+
+### Quick Start
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will be available at `http://localhost:5173` and proxies API requests to the backend.
+
+### Building for Production
+
+```bash
+cd frontend
+npm run build
+```
+
+The built files will be in `frontend/dist/`.
+
+---
 
 ## Usage
 

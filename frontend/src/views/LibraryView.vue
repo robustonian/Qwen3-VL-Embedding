@@ -17,6 +17,57 @@ const isDragging = ref(false)
 const showPreview = ref(false)
 const selectedDocument = ref(null)
 
+// Multi-select state
+const isSelectionMode = ref(false)
+const selectedIds = ref(new Set())
+
+const toggleSelectionMode = () => {
+  isSelectionMode.value = !isSelectionMode.value
+  if (!isSelectionMode.value) {
+    selectedIds.value = new Set()
+  }
+}
+
+const toggleSelect = (id) => {
+  const newSet = new Set(selectedIds.value)
+  if (newSet.has(id)) {
+    newSet.delete(id)
+  } else {
+    newSet.add(id)
+  }
+  selectedIds.value = newSet
+}
+
+const selectAll = () => {
+  selectedIds.value = new Set(documents.value.map(d => d.id))
+}
+
+const clearSelection = () => {
+  selectedIds.value = new Set()
+}
+
+const isSelected = (id) => selectedIds.value.has(id)
+
+const selectedCount = computed(() => selectedIds.value.size)
+
+const handleBatchDelete = async () => {
+  if (selectedIds.value.size === 0) return
+  if (confirm(`${selectedIds.value.size}件のファイルを削除しますか？`)) {
+    await documentsStore.deleteDocuments(Array.from(selectedIds.value))
+    selectedIds.value = new Set()
+    isSelectionMode.value = false
+    await documentsStore.fetchStats()
+  }
+}
+
+const handleCardClick = (doc) => {
+  if (isSelectionMode.value) {
+    toggleSelect(doc.id)
+  } else {
+    openPreview(doc)
+  }
+}
+
 const openPreview = (doc) => {
   selectedDocument.value = doc
   showPreview.value = true
@@ -122,16 +173,78 @@ const changePage = (page) => {
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-2xl font-bold text-text-primary">ライブラリ</h1>
-      <button
-        @click="showUploadModal = true"
-        class="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        アップロード
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          v-if="documents.length > 0"
+          @click="toggleSelectionMode"
+          :class="[
+            'flex items-center gap-2 px-4 py-2 rounded-lg transition-colors',
+            isSelectionMode
+              ? 'bg-accent text-white'
+              : 'bg-bg-tertiary text-text-secondary hover:bg-bg-primary'
+          ]"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+          {{ isSelectionMode ? '選択中' : '選択' }}
+        </button>
+        <button
+          @click="showUploadModal = true"
+          class="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          アップロード
+        </button>
+      </div>
     </div>
+
+    <!-- Selection Toolbar -->
+    <Transition name="slide">
+      <div
+        v-if="isSelectionMode"
+        class="flex items-center justify-between mb-4 p-3 bg-bg-secondary border border-border rounded-lg"
+      >
+        <div class="flex items-center gap-4">
+          <span class="text-text-secondary">
+            {{ selectedCount }}件選択中
+          </span>
+          <button
+            @click="selectAll"
+            class="text-sm text-accent hover:text-accent-hover transition-colors"
+          >
+            すべて選択
+          </button>
+          <button
+            v-if="selectedCount > 0"
+            @click="clearSelection"
+            class="text-sm text-text-muted hover:text-text-secondary transition-colors"
+          >
+            選択解除
+          </button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            @click="handleBatchDelete"
+            :disabled="selectedCount === 0"
+            class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            削除
+          </button>
+          <button
+            @click="toggleSelectionMode"
+            class="px-4 py-2 bg-bg-tertiary text-text-secondary rounded-lg hover:bg-bg-primary transition-colors"
+          >
+            キャンセル
+          </button>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Loading State -->
     <div v-if="isLoading && !documents.length" class="text-center py-12">
@@ -159,8 +272,13 @@ const changePage = (page) => {
         <div
           v-for="doc in documents"
           :key="doc.id"
-          class="group bg-bg-secondary border border-border rounded-lg overflow-hidden hover:border-accent transition-colors cursor-pointer"
-          @click="openPreview(doc)"
+          :class="[
+            'group bg-bg-secondary border rounded-lg overflow-hidden transition-colors cursor-pointer',
+            isSelected(doc.id)
+              ? 'border-accent ring-2 ring-accent/50'
+              : 'border-border hover:border-accent'
+          ]"
+          @click="handleCardClick(doc)"
         >
           <!-- Thumbnail -->
           <div class="aspect-square bg-bg-tertiary relative overflow-hidden">
@@ -168,7 +286,7 @@ const changePage = (page) => {
               v-if="doc.thumbnail_path"
               :src="getFileUrl(doc.thumbnail_path)"
               :alt="doc.file_name"
-              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+              class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
             />
             <div v-else class="w-full h-full flex items-center justify-center text-text-muted">
               <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,8 +294,38 @@ const changePage = (page) => {
               </svg>
             </div>
 
-            <!-- Actions -->
-            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2" @click.stop>
+            <!-- Selection Checkbox -->
+            <div
+              v-if="isSelectionMode"
+              class="absolute top-2 left-2 z-10"
+              @click.stop="toggleSelect(doc.id)"
+            >
+              <div
+                :class="[
+                  'w-6 h-6 rounded border-2 flex items-center justify-center transition-colors',
+                  isSelected(doc.id)
+                    ? 'bg-accent border-accent'
+                    : 'bg-black/50 border-white/50 hover:border-white'
+                ]"
+              >
+                <svg
+                  v-if="isSelected(doc.id)"
+                  class="w-4 h-4 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Actions (hidden in selection mode) -->
+            <div
+              v-if="!isSelectionMode"
+              class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2"
+              @click="openPreview(doc)"
+            >
               <button
                 @click="openPreview(doc)"
                 class="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
@@ -189,7 +337,7 @@ const changePage = (page) => {
                 </svg>
               </button>
               <button
-                @click="handleDelete(doc.id)"
+                @click.stop="handleDelete(doc.id)"
                 class="p-2 bg-red-500/80 rounded-full hover:bg-red-500 transition-colors"
                 title="削除"
               >
@@ -371,5 +519,16 @@ const changePage = (page) => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 0.2s ease;
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 </style>
