@@ -2,10 +2,13 @@
 import { ref, computed } from 'vue'
 import { useSearchStore } from '@/stores/search'
 import { useCollectionsStore } from '@/stores/collections'
+import { useDocumentsStore } from '@/stores/documents'
 import PreviewModal from '@/components/PreviewModal.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const searchStore = useSearchStore()
 const collectionsStore = useCollectionsStore()
+const documentsStore = useDocumentsStore()
 
 const searchQuery = ref('')
 const searchImage = ref(null)
@@ -26,6 +29,31 @@ const openPreview = (result) => {
 const closePreview = () => {
   showPreview.value = false
   selectedDocument.value = null
+}
+
+// Delete confirmation
+const showDeleteConfirm = ref(false)
+const deleteTargetId = ref(null)
+
+const handleDeleteRequest = (id) => {
+  deleteTargetId.value = id
+  showDeleteConfirm.value = true
+}
+
+const confirmDelete = async () => {
+  if (deleteTargetId.value) {
+    await documentsStore.deleteDocument(deleteTargetId.value)
+    // Remove from search results
+    searchStore.removeResult(deleteTargetId.value)
+    closePreview()
+  }
+  showDeleteConfirm.value = false
+  deleteTargetId.value = null
+}
+
+const cancelDelete = () => {
+  showDeleteConfirm.value = false
+  deleteTargetId.value = null
 }
 
 const isLoading = computed(() => searchStore.loading)
@@ -255,7 +283,7 @@ const getFileUrl = (path) => {
               v-if="result.metadata?.thumbnail_path"
               :src="getFileUrl(result.metadata.thumbnail_path)"
               :alt="result.metadata?.file_name"
-              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+              class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
             />
             <div v-else class="w-full h-full flex items-center justify-center text-text-muted">
               <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -292,6 +320,19 @@ const getFileUrl = (path) => {
       :show="showPreview"
       :document="selectedDocument"
       @close="closePreview"
+      @delete="handleDeleteRequest"
+    />
+
+    <!-- Delete Confirmation Dialog -->
+    <ConfirmDialog
+      :show="showDeleteConfirm"
+      title="ファイルを削除"
+      message="このファイルを削除しますか？この操作は取り消せません。"
+      confirm-text="削除"
+      cancel-text="キャンセル"
+      type="danger"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
     />
   </div>
 </template>

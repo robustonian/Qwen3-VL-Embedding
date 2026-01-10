@@ -62,6 +62,10 @@ export const useSearchStore = defineStore('search', () => {
     query.value = ''
   }
 
+  function removeResult(id) {
+    results.value = results.value.filter(r => r.id !== id)
+  }
+
   return {
     results,
     query,
@@ -72,6 +76,7 @@ export const useSearchStore = defineStore('search', () => {
     searchByText,
     searchByImage,
     fetchRecentSearches,
-    clearResults
+    clearResults,
+    removeResult
   }
 })

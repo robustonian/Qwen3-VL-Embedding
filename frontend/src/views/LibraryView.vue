@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useDocumentsStore } from '@/stores/documents'
 import { useCollectionsStore } from '@/stores/collections'
 import PreviewModal from '@/components/PreviewModal.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const documentsStore = useDocumentsStore()
 const collectionsStore = useCollectionsStore()
@@ -50,15 +51,53 @@ const isSelected = (id) => selectedIds.value.has(id)
 
 const selectedCount = computed(() => selectedIds.value.size)
 
-const handleBatchDelete = async () => {
+// Delete confirmation dialog
+const showDeleteConfirm = ref(false)
+const deleteTargetId = ref(null)
+const deleteTargetCount = ref(0)
+const isBatchDelete = ref(false)
+
+const handleDeleteRequest = (id) => {
+  deleteTargetId.value = id
+  deleteTargetCount.value = 1
+  isBatchDelete.value = false
+  showDeleteConfirm.value = true
+}
+
+const handleBatchDeleteRequest = () => {
   if (selectedIds.value.size === 0) return
-  if (confirm(`${selectedIds.value.size}件のファイルを削除しますか？`)) {
+  deleteTargetCount.value = selectedIds.value.size
+  isBatchDelete.value = true
+  showDeleteConfirm.value = true
+}
+
+const confirmDelete = async () => {
+  if (isBatchDelete.value) {
     await documentsStore.deleteDocuments(Array.from(selectedIds.value))
     selectedIds.value = new Set()
     isSelectionMode.value = false
-    await documentsStore.fetchStats()
+  } else if (deleteTargetId.value) {
+    await documentsStore.deleteDocument(deleteTargetId.value)
+    closePreview()
   }
+  await documentsStore.fetchStats()
+  showDeleteConfirm.value = false
+  deleteTargetId.value = null
+  isBatchDelete.value = false
 }
+
+const cancelDelete = () => {
+  showDeleteConfirm.value = false
+  deleteTargetId.value = null
+  isBatchDelete.value = false
+}
+
+const deleteConfirmMessage = computed(() => {
+  if (isBatchDelete.value) {
+    return `${deleteTargetCount.value}件のファイルを削除しますか？この操作は取り消せません。`
+  }
+  return 'このファイルを削除しますか？この操作は取り消せません。'
+})
 
 const handleCardClick = (doc) => {
   if (isSelectionMode.value) {
@@ -132,12 +171,6 @@ const handleUpload = async () => {
   showUploadModal.value = false
   await documentsStore.fetchDocuments()
   await documentsStore.fetchStats()
-}
-
-const handleDelete = async (id) => {
-  if (confirm('このファイルを削除しますか？')) {
-    await documentsStore.deleteDocument(id)
-  }
 }
 
 const getFileUrl = (path) => {
@@ -227,7 +260,7 @@ const changePage = (page) => {
         </div>
         <div class="flex items-center gap-2">
           <button
-            @click="handleBatchDelete"
+            @click="handleBatchDeleteRequest"
             :disabled="selectedCount === 0"
             class="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -337,7 +370,7 @@ const changePage = (page) => {
                 </svg>
               </button>
               <button
-                @click.stop="handleDelete(doc.id)"
+                @click.stop="handleDeleteRequest(doc.id)"
                 class="p-2 bg-red-500/80 rounded-full hover:bg-red-500 transition-colors"
                 title="削除"
               >
@@ -506,6 +539,19 @@ const changePage = (page) => {
       :show="showPreview"
       :document="selectedDocument"
       @close="closePreview"
+      @delete="handleDeleteRequest"
+    />
+
+    <!-- Delete Confirmation Dialog -->
+    <ConfirmDialog
+      :show="showDeleteConfirm"
+      title="ファイルを削除"
+      :message="deleteConfirmMessage"
+      confirm-text="削除"
+      cancel-text="キャンセル"
+      type="danger"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
     />
   </div>
 </template>
