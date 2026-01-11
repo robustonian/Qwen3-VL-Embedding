@@ -155,16 +155,16 @@ We provide an OpenAI-compatible API server that supports multimodal embeddings w
 **Start the API server:**
 ```bash
 # Default: host=0.0.0.0, port=8000
-python api_server.py
+uv run python api_server.py
 
 # Custom configuration
-python api_server.py --host 127.0.0.1 --port 9000 --model-path ./models/Qwen3-VL-Embedding-2B
+uv run python api_server.py --host 127.0.0.1 --port 9000 --model-path ./models/Qwen3-VL-Embedding-2B
 
 # Using serve.sh (loads .env automatically)
 bash serve.sh
 
 # View all options
-python api_server.py --help
+uv run python api_server.py --help
 ```
 
 **Environment Configuration (`.env`):**
@@ -186,7 +186,7 @@ VITE_API_PORT=8000
 
 **Test the API:**
 ```bash
-python test_api.py
+uv run python test_api.py
 ```
 
 ### API Usage
@@ -610,6 +610,14 @@ We provide reproducible evaluation code for **MMEB v2** benchmark, based on [VLM
 #### Reranking Model
 
 Coming soon.
+
+---
+
+## Acknowledgements
+
+This project is based on [Qwen3-VL-Embedding](https://github.com/QwenLM/Qwen3-VL-Embedding), licensed under the Apache License 2.0.
+
+Significant modifications have been made.
 
 ---
 
