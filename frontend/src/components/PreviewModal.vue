@@ -122,8 +122,11 @@ onUnmounted(() => {
         class="fixed inset-0 z-50 flex items-center justify-center"
         @click.self="imageZoomed ? (imageZoomed = false) : emit('close')"
       >
-        <!-- Multi-layer Backdrop -->
-        <div class="absolute inset-0">
+        <!-- Multi-layer Backdrop (clickable to close) -->
+        <div
+          class="absolute inset-0 cursor-pointer"
+          @click="imageZoomed ? (imageZoomed = false) : emit('close')"
+        >
           <div class="absolute inset-0 bg-black/80 backdrop-blur-md"></div>
           <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
         </div>
@@ -152,6 +155,7 @@ onUnmounted(() => {
         <div
           class="modal-content relative w-full max-w-5xl max-h-[90vh] mx-4 flex flex-col rounded-2xl shadow-2xl overflow-hidden"
           :class="{ 'opacity-0 pointer-events-none': imageZoomed }"
+          @click.stop
         >
           <!-- Glow effect -->
           <div class="absolute -inset-1 bg-gradient-to-r from-accent/20 via-accent/5 to-accent/20 rounded-3xl blur-xl opacity-50"></div>
@@ -269,41 +273,41 @@ onUnmounted(() => {
               <!-- Delete Button -->
               <button
                 @click="emit('delete', documentId)"
-                class="btn-danger-ghost flex items-center gap-2"
+                class="action-btn action-btn-danger group"
                 title="削除"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
-                削除
+                <span class="action-btn-tooltip">削除</span>
               </button>
 
               <!-- Right Actions -->
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2">
                 <button
                   v-if="isText"
                   @click="copyContent"
-                  class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.98]"
-                  :class="copied
-                    ? 'bg-success/20 text-success border border-success/30'
-                    : 'btn-secondary'"
+                  class="action-btn group"
+                  :class="copied ? 'action-btn-success' : ''"
+                  title="コピー"
                 >
-                  <svg v-if="!copied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg v-if="!copied" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
-                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                   </svg>
-                  {{ copied ? 'コピーしました' : 'コピー' }}
+                  <span class="action-btn-tooltip">{{ copied ? 'コピーしました' : 'コピー' }}</span>
                 </button>
                 <button
                   @click="downloadFile"
-                  class="btn-primary flex items-center gap-2"
+                  class="action-btn action-btn-accent group"
+                  title="ダウンロード"
                 >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  ダウンロード
+                  <span class="action-btn-tooltip">ダウンロード</span>
                 </button>
               </div>
             </div>
@@ -376,8 +380,39 @@ onUnmounted(() => {
   transform: scale(0.9);
 }
 
-/* Button variant for ghost danger */
-.btn-danger-ghost {
-  @apply px-4 py-2.5 rounded-xl text-sm font-medium text-error/80 hover:text-error hover:bg-error/10 active:scale-[0.98] transition-all duration-200;
+/* Action Button Base */
+.action-btn {
+  @apply relative p-3 rounded-xl text-text-muted bg-white/5 backdrop-blur-sm border border-white/10
+         hover:text-text-primary hover:bg-white/10 hover:border-white/20
+         active:scale-95 transition-all duration-200;
+}
+
+.action-btn-danger {
+  @apply text-error/70 hover:text-error hover:bg-error/10 hover:border-error/30;
+}
+
+.action-btn-accent {
+  @apply text-accent/80 hover:text-accent hover:bg-accent/10 hover:border-accent/30;
+}
+
+.action-btn-success {
+  @apply text-success bg-success/10 border-success/30;
+}
+
+/* Tooltip */
+.action-btn-tooltip {
+  @apply absolute -top-10 left-1/2 -translate-x-1/2 px-2.5 py-1.5 rounded-lg
+         bg-bg-primary/95 backdrop-blur-sm border border-white/10
+         text-xs text-text-primary font-medium whitespace-nowrap
+         opacity-0 invisible group-hover:opacity-100 group-hover:visible
+         transition-all duration-200 pointer-events-none
+         shadow-lg;
+}
+
+.action-btn-tooltip::after {
+  content: '';
+  @apply absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2
+         bg-bg-primary/95 border-r border-b border-white/10
+         rotate-45;
 }
 </style>
