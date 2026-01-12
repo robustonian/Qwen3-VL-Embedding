@@ -1,8 +1,18 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
+import markedKatex from 'marked-katex-extension'
+import 'katex/dist/katex.min.css'
 import api from '@/api/client'
 import { useToastStore } from '@/stores/toast'
+
+// Configure marked with GFM line breaks and KaTeX math support
+marked.use(markedKatex({
+  throwOnError: false
+}))
+marked.setOptions({
+  breaks: true  // Enable GFM line breaks (single newline = <br>)
+})
 
 const props = defineProps({
   show: {
