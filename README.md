@@ -271,6 +271,7 @@ A Vue.js-based web application for multimodal image search and library managemen
   - Toast notifications for user feedback
   - Keyboard shortcuts (`/` or `Cmd+K` for quick search, `ESC` to close modals)
   - Image zoom functionality in preview modal (`Z` key or click)
+  - Preview navigation with arrow keys (`←`/`→` to browse files)
   - Responsive dark theme with adaptive grid layout
 
 ### Tech Stack
