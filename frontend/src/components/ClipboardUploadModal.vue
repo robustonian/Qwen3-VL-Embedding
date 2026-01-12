@@ -39,48 +39,65 @@ const readClipboard = async () => {
   textContent.value = ''
   imageData.value = null
 
+  // Check if clipboard API is available (requires HTTPS or localhost)
+  if (!navigator.clipboard) {
+    toastStore.error('クリップボードAPIが利用できません（HTTPSが必要です）')
+    isLoading.value = false
+    return
+  }
+
   try {
-    // Try to read clipboard
-    const items = await navigator.clipboard.read()
+    // Check if clipboard.read is supported (for images)
+    if (typeof navigator.clipboard.read === 'function') {
+      const items = await navigator.clipboard.read()
 
-    for (const item of items) {
-      // Check for image types
-      const imageType = item.types.find(t => t.startsWith('image/'))
-      if (imageType) {
-        const blob = await item.getType(imageType)
-        imageData.value = blob
-        clipboardType.value = 'image'
+      for (const item of items) {
+        // Check for image types
+        const imageType = item.types.find(t => t.startsWith('image/'))
+        if (imageType) {
+          const blob = await item.getType(imageType)
+          imageData.value = blob
+          clipboardType.value = 'image'
 
-        // Create preview URL
-        if (imagePreview.value) {
-          URL.revokeObjectURL(imagePreview.value)
+          // Create preview URL
+          if (imagePreview.value) {
+            URL.revokeObjectURL(imagePreview.value)
+          }
+          imagePreview.value = URL.createObjectURL(blob)
+
+          // Generate default filename
+          const ext = imageType.split('/')[1] || 'png'
+          fileName.value = `clipboard_${Date.now()}.${ext}`
+          isLoading.value = false
+          return
         }
-        imagePreview.value = URL.createObjectURL(blob)
 
-        // Generate default filename
-        const ext = imageType.split('/')[1] || 'png'
-        fileName.value = `clipboard_${Date.now()}.${ext}`
-        isLoading.value = false
-        return
+        // Check for text
+        if (item.types.includes('text/plain')) {
+          const blob = await item.getType('text/plain')
+          textContent.value = await blob.text()
+          clipboardType.value = 'text'
+          fileName.value = `clipboard_${Date.now()}.txt`
+          isLoading.value = false
+          return
+        }
       }
 
-      // Check for text
-      if (item.types.includes('text/plain')) {
-        const blob = await item.getType('text/plain')
-        textContent.value = await blob.text()
+      // Fallback to readText for simple text
+      const text = await navigator.clipboard.readText()
+      if (text) {
+        textContent.value = text
         clipboardType.value = 'text'
         fileName.value = `clipboard_${Date.now()}.txt`
-        isLoading.value = false
-        return
       }
-    }
-
-    // Fallback to readText for simple text
-    const text = await navigator.clipboard.readText()
-    if (text) {
-      textContent.value = text
-      clipboardType.value = 'text'
-      fileName.value = `clipboard_${Date.now()}.txt`
+    } else {
+      // clipboard.read not supported, try readText only
+      const text = await navigator.clipboard.readText()
+      if (text) {
+        textContent.value = text
+        clipboardType.value = 'text'
+        fileName.value = `clipboard_${Date.now()}.txt`
+      }
     }
   } catch (error) {
     console.error('Failed to read clipboard:', error)
