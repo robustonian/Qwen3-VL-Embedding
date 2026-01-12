@@ -25,7 +25,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'delete'])
+const emit = defineEmits(['close', 'delete', 'prev', 'next'])
 
 const toast = useToastStore()
 const textContent = ref('')
@@ -195,6 +195,15 @@ const handleKeydown = (e) => {
   // Zoom with Z key
   if (e.key === 'z' && isImage.value && imageLoaded.value) {
     toggleZoom()
+  }
+  // Navigate with arrow keys
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    emit('prev')
+  }
+  if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    emit('next')
   }
 }
 

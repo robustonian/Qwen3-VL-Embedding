@@ -123,6 +123,21 @@ const closePreview = () => {
   selectedDocument.value = null
 }
 
+const navigatePreview = (direction) => {
+  if (!selectedDocument.value) return
+  const docs = documentsStore.documents
+  const currentIndex = docs.findIndex(d => d.id === selectedDocument.value.id)
+  if (currentIndex === -1) return
+
+  const newIndex = direction === 'prev'
+    ? currentIndex - 1
+    : currentIndex + 1
+
+  if (newIndex >= 0 && newIndex < docs.length) {
+    selectedDocument.value = docs[newIndex]
+  }
+}
+
 const documents = computed(() => documentsStore.documents)
 const isLoading = computed(() => documentsStore.loading)
 const currentPage = computed(() => documentsStore.pagination?.page || 1)
@@ -656,6 +671,8 @@ const changePage = (page) => {
       :document="selectedDocument"
       @close="closePreview"
       @delete="handleDeleteRequest"
+      @prev="navigatePreview('prev')"
+      @next="navigatePreview('next')"
     />
 
     <!-- Delete Confirmation Dialog -->
