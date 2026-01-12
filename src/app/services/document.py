@@ -12,6 +12,7 @@ from ..database.chroma import chroma_manager
 from ..database.sqlite import sqlite_manager
 from .thumbnail import thumbnail_service
 from .pdf import pdf_service
+from .progress import progress_manager
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,8 @@ class DocumentService:
         file_content: bytes,
         file_name: str,
         mime_type: str,
-        collection_id: str = None
+        collection_id: str = None,
+        task_id: str = None
     ) -> Dict[str, Any]:
         """Upload and process a single file."""
         file_size = len(file_content)
@@ -102,7 +104,8 @@ class DocumentService:
                 file_name=file_name,
                 file_id=file_id,
                 content_hash=content_hash,
-                collection_id=collection_id
+                collection_id=collection_id,
+                task_id=task_id
             )
 
         # Determine storage path
@@ -183,7 +186,8 @@ class DocumentService:
         file_name: str,
         file_id: str,
         content_hash: str,
-        collection_id: str = None
+        collection_id: str = None,
+        task_id: str = None
     ) -> Dict[str, Any]:
         """Process PDF: save original and extract pages as images."""
         file_size = len(file_content)
@@ -238,8 +242,26 @@ class DocumentService:
             base_name
         )
 
+        # Report total pages for progress tracking
+        if task_id:
+            await progress_manager.update_progress(
+                task_id,
+                total_pages=len(pages),
+                status="processing",
+                message=f"PDF解析完了: {len(pages)}ページ"
+            )
+
         page_results = []
         for image_path, page_num in pages:
+            # Report progress for each page
+            if task_id:
+                await progress_manager.update_progress(
+                    task_id,
+                    current_page=page_num,
+                    total_pages=len(pages),
+                    status="processing",
+                    message=f"ページ {page_num}/{len(pages)} 処理中..."
+                )
             page_id = str(uuid.uuid4())
             page_name = f"{base_name}_page{page_num}.png"
 

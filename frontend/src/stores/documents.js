@@ -10,6 +10,15 @@ export const useDocumentsStore = defineStore('documents', () => {
   const uploadProgress = ref(0)
   const stats = ref(null)
 
+  // PDF processing progress
+  const pdfProgress = ref({
+    isProcessing: false,
+    currentPage: 0,
+    totalPages: 0,
+    message: '',
+    fileName: ''
+  })
+
   const isEmpty = computed(() => documents.value.length === 0)
 
   async function fetchDocuments(params = {}) {
@@ -51,6 +60,103 @@ export const useDocumentsStore = defineStore('documents', () => {
     }
   }
 
+  /**
+   * Upload files with streaming progress (for PDFs with page-by-page updates).
+   * Uses NDJSON streaming to receive real-time progress updates.
+   */
+  async function uploadFilesWithProgress(files, collectionId = null) {
+    uploading.value = true
+    uploadProgress.value = 0
+    pdfProgress.value = {
+      isProcessing: true,
+      currentPage: 0,
+      totalPages: 0,
+      message: 'アップロード準備中...',
+      fileName: ''
+    }
+
+    try {
+      const formData = new FormData()
+      for (const file of files) {
+        formData.append('files', file)
+      }
+      if (collectionId) {
+        formData.append('collection_id', collectionId)
+      }
+
+      // Use fetch for streaming response
+      const response = await fetch('/api/documents/upload/stream', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.status}`)
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let results = []
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        // Process complete lines (NDJSON format)
+        const lines = buffer.split('\n')
+        buffer = lines.pop() // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+
+          try {
+            const event = JSON.parse(line)
+
+            if (event.type === 'progress') {
+              pdfProgress.value.currentPage = event.current_page
+              pdfProgress.value.totalPages = event.total_pages
+              pdfProgress.value.message = event.message
+              pdfProgress.value.fileName = event.file_name
+
+              // Calculate overall progress (HTTP upload is ~20%, processing is 20-100%)
+              if (event.total_pages > 0) {
+                const pageProgress = (event.current_page / event.total_pages) * 80
+                uploadProgress.value = 20 + Math.round(pageProgress)
+              } else {
+                uploadProgress.value = 20
+              }
+            } else if (event.type === 'file_complete') {
+              results.push(event.result)
+            } else if (event.type === 'complete') {
+              uploadProgress.value = 100
+              results = event.results || results
+            } else if (event.type === 'error') {
+              console.error('Upload error:', event.message)
+            }
+          } catch (e) {
+            console.warn('Failed to parse progress event:', line, e)
+          }
+        }
+      }
+
+      await fetchDocuments()
+      return results
+    } finally {
+      uploading.value = false
+      uploadProgress.value = 0
+      pdfProgress.value = {
+        isProcessing: false,
+        currentPage: 0,
+        totalPages: 0,
+        message: '',
+        fileName: ''
+      }
+    }
+  }
+
   async function deleteDocument(id) {
     await api.delete(`/documents/${id}`)
     documents.value = documents.value.filter(d => d.id !== id)
@@ -75,10 +181,12 @@ export const useDocumentsStore = defineStore('documents', () => {
     loading,
     uploading,
     uploadProgress,
+    pdfProgress,
     stats,
     isEmpty,
     fetchDocuments,
     uploadFiles,
+    uploadFilesWithProgress,
     deleteDocument,
     deleteDocuments,
     fetchStats

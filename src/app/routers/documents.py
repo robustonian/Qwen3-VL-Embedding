@@ -1,11 +1,15 @@
 import logging
+import json
+import asyncio
+import uuid
 from typing import List, Optional
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Query
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from ..services.document import document_service
+from ..services.progress import progress_manager
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -75,6 +79,141 @@ async def upload_documents(
         raise HTTPException(status_code=400, detail=errors)
 
     return results
+
+
+@router.post("/upload/stream")
+async def upload_documents_stream(
+    files: List[UploadFile] = File(...),
+    collection_id: Optional[str] = Form(None)
+):
+    """Upload files with streaming progress (for PDFs with multiple pages).
+
+    Returns newline-delimited JSON (NDJSON) with progress updates.
+    Each line is a JSON object with type: "progress" | "complete" | "error"
+    """
+    async def generate():
+        results = []
+        errors = []
+
+        for file_index, file in enumerate(files):
+            # Validate file type
+            if file.content_type not in settings.ALLOWED_IMAGE_TYPES and \
+               file.content_type not in settings.ALLOWED_DOCUMENT_TYPES:
+                errors.append(f"Unsupported file type: {file.filename} ({file.content_type})")
+                yield json.dumps({
+                    "type": "error",
+                    "message": f"Unsupported file type: {file.filename}"
+                }) + "\n"
+                continue
+
+            # Read file content
+            content = await file.read()
+
+            # Validate file size
+            if len(content) > settings.MAX_FILE_SIZE:
+                errors.append(f"File too large: {file.filename}")
+                yield json.dumps({
+                    "type": "error",
+                    "message": f"File too large: {file.filename}"
+                }) + "\n"
+                continue
+
+            try:
+                # Create task for progress tracking
+                task_id = str(uuid.uuid4())
+                progress_manager.create_task(task_id, file.filename)
+
+                # Send initial progress
+                yield json.dumps({
+                    "type": "progress",
+                    "file_name": file.filename,
+                    "file_index": file_index,
+                    "total_files": len(files),
+                    "status": "uploading",
+                    "current_page": 0,
+                    "total_pages": 0,
+                    "message": f"ファイルを処理中: {file.filename}"
+                }) + "\n"
+
+                # Start processing with progress callback
+                async def progress_callback(current_page: int, total_pages: int, message: str):
+                    await progress_manager.update_progress(
+                        task_id,
+                        current_page=current_page,
+                        total_pages=total_pages,
+                        status="processing",
+                        message=message
+                    )
+
+                # Subscribe to progress updates
+                queue = progress_manager.subscribe(task_id)
+
+                # Start upload in background
+                upload_task = asyncio.create_task(
+                    document_service.upload_file(
+                        file_content=content,
+                        file_name=file.filename,
+                        mime_type=file.content_type,
+                        collection_id=collection_id,
+                        task_id=task_id
+                    )
+                )
+
+                # Stream progress updates
+                while not upload_task.done():
+                    try:
+                        event = await asyncio.wait_for(queue.get(), timeout=0.5)
+                        yield json.dumps({
+                            "type": "progress",
+                            "file_name": file.filename,
+                            "file_index": file_index,
+                            "total_files": len(files),
+                            "status": event.get("status", "processing"),
+                            "current_page": event.get("current_page", 0),
+                            "total_pages": event.get("total_pages", 0),
+                            "message": event.get("message", "")
+                        }) + "\n"
+                    except asyncio.TimeoutError:
+                        continue
+
+                # Get result
+                result = await upload_task
+                results.append(result)
+
+                # Cleanup
+                progress_manager.unsubscribe(task_id, queue)
+                progress_manager.cleanup_task(task_id)
+
+                yield json.dumps({
+                    "type": "file_complete",
+                    "file_name": file.filename,
+                    "file_index": file_index,
+                    "total_files": len(files),
+                    "result": result
+                }) + "\n"
+
+            except Exception as e:
+                logger.error(f"Failed to upload {file.filename}: {e}")
+                errors.append(f"Failed to process: {file.filename}")
+                yield json.dumps({
+                    "type": "error",
+                    "file_name": file.filename,
+                    "message": str(e)
+                }) + "\n"
+
+        # Final complete message
+        yield json.dumps({
+            "type": "complete",
+            "results": results,
+            "errors": errors
+        }) + "\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson",
+        headers={"X-Accel-Buffering": "no"}  # Disable nginx buffering
+    )
+
 
 @router.get("", response_model=DocumentListResponse)
 async def list_documents(

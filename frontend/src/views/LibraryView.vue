@@ -189,17 +189,26 @@ const handleUpload = async () => {
   isUploading.value = true
   uploadProgress.value = 0
 
-  for (let i = 0; i < uploadFiles.value.length; i++) {
-    try {
-      await documentsStore.uploadFiles([uploadFiles.value[i]], uploadCollection.value || undefined)
-      uploadProgress.value = Math.round(((i + 1) / uploadFiles.value.length) * 100)
-    } catch (error) {
-      console.error('Upload failed:', error)
-      toastStore.error('アップロードに失敗しました')
+  // Check if any file is a PDF (needs streaming progress)
+  const hasPdf = uploadFiles.value.some(f => f.type === 'application/pdf')
+
+  try {
+    if (hasPdf) {
+      // Use streaming upload for PDFs to get page-by-page progress
+      await documentsStore.uploadFilesWithProgress(uploadFiles.value, uploadCollection.value || undefined)
+    } else {
+      // Use regular upload for images/text files
+      for (let i = 0; i < uploadFiles.value.length; i++) {
+        await documentsStore.uploadFiles([uploadFiles.value[i]], uploadCollection.value || undefined)
+        uploadProgress.value = Math.round(((i + 1) / uploadFiles.value.length) * 100)
+      }
     }
+    toastStore.success(`${uploadFiles.value.length}件のファイルをアップロードしました`)
+  } catch (error) {
+    console.error('Upload failed:', error)
+    toastStore.error('アップロードに失敗しました')
   }
 
-  toastStore.success(`${uploadFiles.value.length}件のファイルをアップロードしました`)
   isUploading.value = false
   uploadFiles.value = []
   showUploadModal.value = false
@@ -589,14 +598,32 @@ const changePage = (page) => {
                   </div>
 
                   <!-- Progress -->
-                  <div v-if="isUploading" class="space-y-2">
+                  <div v-if="isUploading" class="space-y-3">
                     <div class="h-2 bg-bg-tertiary rounded-full overflow-hidden">
                       <div
-                        class="h-full bg-gradient-to-r from-accent to-accent-hover transition-all duration-500 ease-smooth"
-                        :style="{ width: uploadProgress + '%' }"
+                        class="h-full bg-gradient-to-r from-accent to-accent-hover transition-all duration-300 ease-smooth"
+                        :style="{ width: (documentsStore.pdfProgress.isProcessing ? documentsStore.uploadProgress : uploadProgress) + '%' }"
                       ></div>
                     </div>
-                    <p class="text-sm text-text-muted text-center">{{ uploadProgress }}% 完了</p>
+
+                    <div class="text-center">
+                      <!-- PDF processing progress with page count -->
+                      <template v-if="documentsStore.pdfProgress.isProcessing && documentsStore.pdfProgress.totalPages > 0">
+                        <p class="text-sm text-text-secondary">
+                          <span class="font-medium text-accent">
+                            {{ documentsStore.pdfProgress.currentPage }}/{{ documentsStore.pdfProgress.totalPages }}
+                          </span>
+                          ページ処理中...
+                        </p>
+                        <p v-if="documentsStore.pdfProgress.message" class="text-xs text-text-muted mt-1">
+                          {{ documentsStore.pdfProgress.message }}
+                        </p>
+                      </template>
+                      <!-- Regular progress -->
+                      <p v-else class="text-sm text-text-muted">
+                        {{ documentsStore.pdfProgress.isProcessing ? documentsStore.uploadProgress : uploadProgress }}% 完了
+                      </p>
+                    </div>
                   </div>
                 </div>
 
