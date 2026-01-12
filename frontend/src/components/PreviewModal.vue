@@ -134,7 +134,21 @@ const toggleMarkdownView = () => {
 
 const copyContent = async () => {
   try {
-    await navigator.clipboard.writeText(textContent.value)
+    // Check if clipboard API is available (requires HTTPS or localhost)
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(textContent.value)
+    } else {
+      // Fallback for HTTP/non-secure contexts using execCommand
+      const textarea = document.createElement('textarea')
+      textarea.value = textContent.value
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      textarea.style.pointerEvents = 'none'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
     copied.value = true
     toast.success('クリップボードにコピーしました')
     setTimeout(() => {
@@ -587,74 +601,74 @@ onUnmounted(() => {
          rotate-45;
 }
 
-/* Markdown Content Styles */
+/* Markdown Content Styles - use :deep() for v-html content */
 .markdown-content {
   line-height: 1.7;
 }
 
-.markdown-content h1,
-.markdown-content h2,
-.markdown-content h3,
-.markdown-content h4,
-.markdown-content h5,
-.markdown-content h6 {
+.markdown-content :deep(h1),
+.markdown-content :deep(h2),
+.markdown-content :deep(h3),
+.markdown-content :deep(h4),
+.markdown-content :deep(h5),
+.markdown-content :deep(h6) {
   @apply text-text-primary font-display font-semibold mt-6 mb-3;
 }
 
-.markdown-content h1 { @apply text-2xl; }
-.markdown-content h2 { @apply text-xl; }
-.markdown-content h3 { @apply text-lg; }
+.markdown-content :deep(h1) { @apply text-2xl; }
+.markdown-content :deep(h2) { @apply text-xl; }
+.markdown-content :deep(h3) { @apply text-lg; }
 
-.markdown-content p {
+.markdown-content :deep(p) {
   @apply mb-4;
 }
 
-.markdown-content ul,
-.markdown-content ol {
+.markdown-content :deep(ul),
+.markdown-content :deep(ol) {
   @apply ml-6 mb-4;
 }
 
-.markdown-content ul { @apply list-disc; }
-.markdown-content ol { @apply list-decimal; }
+.markdown-content :deep(ul) { @apply list-disc; }
+.markdown-content :deep(ol) { @apply list-decimal; }
 
-.markdown-content li {
+.markdown-content :deep(li) {
   @apply mb-1;
 }
 
-.markdown-content code {
+.markdown-content :deep(code) {
   @apply px-1.5 py-0.5 rounded bg-bg-primary/50 font-mono text-xs text-accent;
 }
 
-.markdown-content pre {
+.markdown-content :deep(pre) {
   @apply p-4 rounded-lg bg-bg-primary/50 overflow-auto mb-4;
 }
 
-.markdown-content pre code {
+.markdown-content :deep(pre) code {
   @apply p-0 bg-transparent;
 }
 
-.markdown-content blockquote {
+.markdown-content :deep(blockquote) {
   @apply pl-4 border-l-2 border-accent/50 italic text-text-muted mb-4;
 }
 
-.markdown-content a {
+.markdown-content :deep(a) {
   @apply text-accent hover:underline;
 }
 
-.markdown-content table {
+.markdown-content :deep(table) {
   @apply w-full border-collapse mb-4;
 }
 
-.markdown-content th,
-.markdown-content td {
+.markdown-content :deep(th),
+.markdown-content :deep(td) {
   @apply border border-border/30 px-3 py-2 text-left;
 }
 
-.markdown-content th {
+.markdown-content :deep(th) {
   @apply bg-bg-tertiary/50 font-semibold;
 }
 
-.markdown-content hr {
+.markdown-content :deep(hr) {
   @apply border-border/30 my-6;
 }
 </style>
