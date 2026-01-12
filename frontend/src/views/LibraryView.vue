@@ -353,7 +353,7 @@ const changePage = (page) => {
     <div class="flex flex-wrap items-center gap-3 mb-6">
       <select
         v-model="selectedCollection"
-        class="px-4 py-2.5 bg-bg-primary/50 border border-border/50 rounded-xl
+        class="px-4 py-2.5 bg-bg-secondary border border-border/50 rounded-xl
                text-text-secondary text-sm
                focus:outline-none focus:border-accent/50 focus:shadow-glow-input
                transition-all duration-200 cursor-pointer"
