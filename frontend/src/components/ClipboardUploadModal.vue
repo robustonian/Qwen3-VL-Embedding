@@ -22,6 +22,8 @@ const imagePreview = ref(null)
 const fileName = ref('')
 const isUploading = ref(false)
 const isLoading = ref(false)
+const needsManualPaste = ref(false)
+const pasteAreaRef = ref(null)
 
 const canUpload = computed(() => {
   if (clipboardType.value === 'text') {
@@ -33,85 +35,109 @@ const canUpload = computed(() => {
   return false
 })
 
+// Handle paste event (works on HTTP without clipboard API)
+const handlePaste = (e) => {
+  const items = e.clipboardData?.items
+  if (!items) return
+
+  for (const item of items) {
+    // Check for image
+    if (item.type.startsWith('image/')) {
+      const blob = item.getAsFile()
+      if (blob) {
+        imageData.value = blob
+        clipboardType.value = 'image'
+        needsManualPaste.value = false
+
+        // Create preview URL
+        if (imagePreview.value) {
+          URL.revokeObjectURL(imagePreview.value)
+        }
+        imagePreview.value = URL.createObjectURL(blob)
+
+        // Generate default filename
+        const ext = item.type.split('/')[1] || 'png'
+        fileName.value = `clipboard_${Date.now()}.${ext}`
+        return
+      }
+    }
+
+    // Check for text
+    if (item.type === 'text/plain') {
+      item.getAsString((text) => {
+        if (text) {
+          textContent.value = text
+          clipboardType.value = 'text'
+          needsManualPaste.value = false
+          fileName.value = `clipboard_${Date.now()}.txt`
+        }
+      })
+      return
+    }
+  }
+}
+
 const readClipboard = async () => {
   isLoading.value = true
   clipboardType.value = null
   textContent.value = ''
   imageData.value = null
+  needsManualPaste.value = false
 
   // Check if clipboard API is available (requires HTTPS or localhost)
-  if (!navigator.clipboard) {
-    toastStore.error('クリップボードAPIが利用できません（HTTPSが必要です）')
+  if (!navigator.clipboard || typeof navigator.clipboard.read !== 'function') {
+    // Clipboard API not available, show manual paste prompt
+    needsManualPaste.value = true
     isLoading.value = false
     return
   }
 
   try {
-    // Check if clipboard.read is supported (for images)
-    if (typeof navigator.clipboard.read === 'function') {
-      const items = await navigator.clipboard.read()
+    const items = await navigator.clipboard.read()
 
-      for (const item of items) {
-        // Check for image types
-        const imageType = item.types.find(t => t.startsWith('image/'))
-        if (imageType) {
-          const blob = await item.getType(imageType)
-          imageData.value = blob
-          clipboardType.value = 'image'
+    for (const item of items) {
+      // Check for image types
+      const imageType = item.types.find(t => t.startsWith('image/'))
+      if (imageType) {
+        const blob = await item.getType(imageType)
+        imageData.value = blob
+        clipboardType.value = 'image'
 
-          // Create preview URL
-          if (imagePreview.value) {
-            URL.revokeObjectURL(imagePreview.value)
-          }
-          imagePreview.value = URL.createObjectURL(blob)
-
-          // Generate default filename
-          const ext = imageType.split('/')[1] || 'png'
-          fileName.value = `clipboard_${Date.now()}.${ext}`
-          isLoading.value = false
-          return
+        // Create preview URL
+        if (imagePreview.value) {
+          URL.revokeObjectURL(imagePreview.value)
         }
+        imagePreview.value = URL.createObjectURL(blob)
 
-        // Check for text
-        if (item.types.includes('text/plain')) {
-          const blob = await item.getType('text/plain')
-          textContent.value = await blob.text()
-          clipboardType.value = 'text'
-          fileName.value = `clipboard_${Date.now()}.txt`
-          isLoading.value = false
-          return
-        }
+        // Generate default filename
+        const ext = imageType.split('/')[1] || 'png'
+        fileName.value = `clipboard_${Date.now()}.${ext}`
+        isLoading.value = false
+        return
       }
 
-      // Fallback to readText for simple text
-      const text = await navigator.clipboard.readText()
-      if (text) {
-        textContent.value = text
+      // Check for text
+      if (item.types.includes('text/plain')) {
+        const blob = await item.getType('text/plain')
+        textContent.value = await blob.text()
         clipboardType.value = 'text'
         fileName.value = `clipboard_${Date.now()}.txt`
+        isLoading.value = false
+        return
       }
-    } else {
-      // clipboard.read not supported, try readText only
-      const text = await navigator.clipboard.readText()
-      if (text) {
-        textContent.value = text
-        clipboardType.value = 'text'
-        fileName.value = `clipboard_${Date.now()}.txt`
-      }
+    }
+
+    // Fallback to readText for simple text
+    const text = await navigator.clipboard.readText()
+    if (text) {
+      textContent.value = text
+      clipboardType.value = 'text'
+      fileName.value = `clipboard_${Date.now()}.txt`
     }
   } catch (error) {
     console.error('Failed to read clipboard:', error)
-    // Try fallback to readText
-    try {
-      const text = await navigator.clipboard.readText()
-      if (text) {
-        textContent.value = text
-        clipboardType.value = 'text'
-        fileName.value = `clipboard_${Date.now()}.txt`
-      }
-    } catch (e) {
-      toastStore.error('クリップボードの読み取りに失敗しました')
-    }
+    // Show manual paste prompt as fallback
+    needsManualPaste.value = true
   }
 
   isLoading.value = false
@@ -152,6 +178,7 @@ const handleClose = () => {
   imagePreview.value = null
   fileName.value = ''
   isLoading.value = false
+  needsManualPaste.value = false
   emit('close')
 }
 
@@ -216,6 +243,32 @@ onUnmounted(() => {
                 <div v-if="isLoading" class="flex flex-col items-center py-8">
                   <div class="w-12 h-12 border-2 border-accent/30 border-t-accent rounded-full animate-spin mb-4"></div>
                   <p class="text-text-muted">クリップボードを読み取り中...</p>
+                </div>
+
+                <!-- Manual paste prompt (for HTTP/non-secure context) -->
+                <div v-else-if="needsManualPaste" class="space-y-4">
+                  <div
+                    ref="pasteAreaRef"
+                    class="flex flex-col items-center py-12 px-6 rounded-xl border-2 border-dashed border-accent/30 bg-accent/5 cursor-text focus:outline-none focus:border-accent focus:bg-accent/10 transition-colors"
+                    tabindex="0"
+                    @paste="handlePaste"
+                    @click="pasteAreaRef?.focus()"
+                  >
+                    <svg class="w-12 h-12 text-accent/60 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <p class="text-text-primary font-medium mb-2">ここをクリックしてから</p>
+                    <div class="flex items-center gap-2 text-accent">
+                      <kbd class="px-2 py-1 rounded bg-bg-tertiary border border-border/50 text-sm font-mono">Ctrl</kbd>
+                      <span>+</span>
+                      <kbd class="px-2 py-1 rounded bg-bg-tertiary border border-border/50 text-sm font-mono">V</kbd>
+                    </div>
+                    <p class="text-text-muted text-sm mt-2">で貼り付けてください</p>
+                  </div>
+                  <p class="text-xs text-text-muted text-center">
+                    HTTPアクセスのため、自動読み取りは利用できません
+                  </p>
                 </div>
 
                 <!-- Text preview -->
