@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useDocumentsStore } from '@/stores/documents'
 import { useCollectionsStore } from '@/stores/collections'
 import { useToastStore } from '@/stores/toast'
@@ -21,6 +21,24 @@ const isDragging = ref(false)
 const showPreview = ref(false)
 const selectedDocument = ref(null)
 const showClipboardModal = ref(false)
+
+// Filter state
+const selectedCollection = ref('')
+const selectedFileType = ref('')
+
+const fileTypeOptions = [
+  { value: 'text', label: 'テキスト' },
+  { value: 'image', label: '画像' },
+  { value: 'document', label: 'PDF' }
+]
+
+// Watch filters and refetch documents
+watch([selectedCollection, selectedFileType], async () => {
+  await documentsStore.fetchDocuments({
+    collection_id: selectedCollection.value || undefined,
+    file_type: selectedFileType.value || undefined
+  })
+})
 
 // Multi-select state
 const isSelectionMode = ref(false)
@@ -144,8 +162,17 @@ const currentPage = computed(() => documentsStore.pagination?.page || 1)
 const totalPages = computed(() => documentsStore.pagination?.pages || 1)
 
 const handleClipboardUploaded = async () => {
-  await documentsStore.fetchDocuments()
+  await documentsStore.fetchDocuments({
+    collection_id: selectedCollection.value || undefined,
+    file_type: selectedFileType.value || undefined
+  })
   await documentsStore.fetchStats()
+}
+
+const openUploadModal = () => {
+  showUploadModal.value = true
+  // Set the currently selected collection as the default for upload
+  uploadCollection.value = selectedCollection.value
 }
 
 const handlePaste = (e) => {
@@ -162,6 +189,7 @@ const handlePaste = (e) => {
 }
 
 onMounted(async () => {
+  await collectionsStore.fetchCollections()
   await documentsStore.fetchDocuments()
   document.addEventListener('paste', handlePaste)
 })
@@ -227,7 +255,10 @@ const handleUpload = async () => {
   isUploading.value = false
   uploadFiles.value = []
   showUploadModal.value = false
-  await documentsStore.fetchDocuments()
+  await documentsStore.fetchDocuments({
+    collection_id: selectedCollection.value || undefined,
+    file_type: selectedFileType.value || undefined
+  })
   await documentsStore.fetchStats()
 }
 
@@ -298,7 +329,7 @@ const changePage = (page) => {
           貼り付け
         </button>
         <button
-          @click="showUploadModal = true"
+          @click="openUploadModal"
           class="btn btn-primary flex items-center gap-2"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -307,6 +338,43 @@ const changePage = (page) => {
           アップロード
         </button>
       </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap items-center gap-4 mb-6">
+      <select
+        v-model="selectedCollection"
+        class="px-4 py-2.5 bg-bg-secondary/60 border border-border/50 rounded-xl
+               text-text-secondary text-sm
+               focus:outline-none focus:border-accent/50 focus:shadow-glow-input
+               transition-all duration-200 cursor-pointer"
+      >
+        <option value="">すべてのコレクション</option>
+        <option v-for="col in collectionsStore.collections" :key="col.id" :value="col.id">
+          {{ col.name }}
+        </option>
+      </select>
+
+      <select
+        v-model="selectedFileType"
+        class="px-4 py-2.5 bg-bg-secondary/60 border border-border/50 rounded-xl
+               text-text-secondary text-sm
+               focus:outline-none focus:border-accent/50 focus:shadow-glow-input
+               transition-all duration-200 cursor-pointer"
+      >
+        <option value="">すべてのタイプ</option>
+        <option v-for="opt in fileTypeOptions" :key="opt.value" :value="opt.value">
+          {{ opt.label }}
+        </option>
+      </select>
+
+      <button
+        v-if="selectedCollection || selectedFileType"
+        @click="selectedCollection = ''; selectedFileType = ''"
+        class="text-sm text-text-muted hover:text-text-secondary transition-colors"
+      >
+        フィルタをクリア
+      </button>
     </div>
 
     <!-- Selection Toolbar -->
@@ -376,7 +444,7 @@ const changePage = (page) => {
       <h3 class="text-lg font-display font-semibold text-text-primary mb-2">ファイルがありません</h3>
       <p class="text-text-muted mb-6">最初のファイルをアップロードしましょう</p>
       <button
-        @click="showUploadModal = true"
+        @click="openUploadModal"
         class="btn btn-primary"
       >
         ファイルをアップロード
