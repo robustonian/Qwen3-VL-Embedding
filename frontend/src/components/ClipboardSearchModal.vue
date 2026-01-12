@@ -16,12 +16,47 @@ const toastStore = useToastStore()
 const imageData = ref(null)
 const imagePreview = ref(null)
 const isLoading = ref(false)
+const needsManualPaste = ref(false)
+const pasteAreaRef = ref(null)
 
 const canSearch = computed(() => imageData.value !== null)
+
+// Handle paste event (works on HTTP without clipboard API)
+const handlePaste = (e) => {
+  const items = e.clipboardData?.items
+  if (!items) return
+
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      const blob = item.getAsFile()
+      if (blob) {
+        imageData.value = blob
+        needsManualPaste.value = false
+
+        if (imagePreview.value) {
+          URL.revokeObjectURL(imagePreview.value)
+        }
+        imagePreview.value = URL.createObjectURL(blob)
+        return
+      }
+    }
+  }
+
+  // No image found in paste
+  toastStore.info('クリップボードに画像がありません')
+}
 
 const readClipboard = async () => {
   isLoading.value = true
   imageData.value = null
+  needsManualPaste.value = false
+
+  // Check if clipboard API is available (requires HTTPS or localhost)
+  if (!navigator.clipboard || typeof navigator.clipboard.read !== 'function') {
+    needsManualPaste.value = true
+    isLoading.value = false
+    return
+  }
 
   try {
     const items = await navigator.clipboard.read()
@@ -45,7 +80,8 @@ const readClipboard = async () => {
     toastStore.info('クリップボードに画像がありません')
   } catch (error) {
     console.error('Failed to read clipboard:', error)
-    toastStore.error('クリップボードの読み取りに失敗しました')
+    // Show manual paste prompt as fallback
+    needsManualPaste.value = true
   }
 
   isLoading.value = false
@@ -68,6 +104,7 @@ const handleClose = () => {
   }
   imagePreview.value = null
   isLoading.value = false
+  needsManualPaste.value = false
   emit('close')
 }
 
@@ -134,6 +171,32 @@ onUnmounted(() => {
                 <div v-if="isLoading" class="flex flex-col items-center py-8">
                   <div class="w-12 h-12 border-2 border-accent/30 border-t-accent rounded-full animate-spin mb-4"></div>
                   <p class="text-text-muted">クリップボードを読み取り中...</p>
+                </div>
+
+                <!-- Manual paste prompt (for HTTP/non-secure context) -->
+                <div v-else-if="needsManualPaste && !imagePreview" class="space-y-4">
+                  <div
+                    ref="pasteAreaRef"
+                    class="flex flex-col items-center py-12 px-6 rounded-xl border-2 border-dashed border-accent/30 bg-accent/5 cursor-text focus:outline-none focus:border-accent focus:bg-accent/10 transition-colors"
+                    tabindex="0"
+                    @paste="handlePaste"
+                    @click="pasteAreaRef?.focus()"
+                  >
+                    <svg class="w-12 h-12 text-accent/60 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p class="text-text-primary font-medium mb-2">ここをクリックしてから</p>
+                    <div class="flex items-center gap-2 text-accent">
+                      <kbd class="px-2 py-1 rounded bg-bg-tertiary border border-border/50 text-sm font-mono">Ctrl</kbd>
+                      <span>+</span>
+                      <kbd class="px-2 py-1 rounded bg-bg-tertiary border border-border/50 text-sm font-mono">V</kbd>
+                    </div>
+                    <p class="text-text-muted text-sm mt-2">で画像を貼り付けてください</p>
+                  </div>
+                  <p class="text-xs text-text-muted text-center">
+                    HTTPアクセスのため、自動読み取りは利用できません
+                  </p>
                 </div>
 
                 <!-- Image preview -->
