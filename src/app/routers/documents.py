@@ -154,3 +154,17 @@ async def batch_delete_documents(request: DeleteRequest):
     """Delete multiple documents."""
     deleted = await document_service.delete_documents(request.ids)
     return {"success": True, "deleted": deleted}
+
+@router.post("/migrate-chroma")
+async def migrate_chroma_metadata():
+    """Migrate ChromaDB metadata to add missing fields.
+
+    This endpoint adds the 'parent_document_id' field to existing ChromaDB
+    records that don't have it. This is needed because older records may be
+    missing this field, which causes type filtering to fail.
+
+    Run this once after upgrading to fix filtering for existing data.
+    """
+    from ..database.chroma import chroma_manager
+    updated = chroma_manager.migrate_add_parent_document_id()
+    return {"success": True, "message": f"Migrated {updated} records", "updated_count": updated}

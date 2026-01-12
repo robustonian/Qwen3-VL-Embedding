@@ -228,6 +228,12 @@ const formatFileSize = (bytes) => {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
+// Check if document is a PDF file
+const isPdf = (doc) => {
+  return doc.mime_type === 'application/pdf' ||
+         (doc.file_type === 'document' && doc.file_name?.toLowerCase().endsWith('.pdf'))
+}
+
 const changePage = (page) => {
   if (page >= 1 && page <= totalPages.value) {
     documentsStore.fetchDocuments({ page })
@@ -375,12 +381,25 @@ const changePage = (page) => {
         >
           <!-- Thumbnail -->
           <div class="aspect-square bg-bg-tertiary/50 relative overflow-hidden">
+            <!-- PDF Icon for PDF files -->
+            <div v-if="isPdf(doc)" class="w-full h-full flex items-center justify-center">
+              <div class="relative">
+                <svg class="w-16 h-16 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M14,2H6C4.9,2 4,2.9 4,4V20C4,21.1 4.9,22 6,22H18C19.1,22 20,21.1 20,20V8L14,2M18,20H6V4H13V9H18V20M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.92,12.31 10.92,12.31Z" />
+                </svg>
+                <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded">
+                  PDF
+                </span>
+              </div>
+            </div>
+            <!-- Regular thumbnail for images -->
             <img
-              v-if="doc.thumbnail_path"
+              v-else-if="doc.thumbnail_path"
               :src="getFileUrl(doc.thumbnail_path)"
               :alt="doc.file_name"
               class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 ease-smooth"
             />
+            <!-- Generic icon for other files -->
             <div v-else class="w-full h-full flex items-center justify-center text-text-muted">
               <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

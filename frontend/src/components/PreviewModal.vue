@@ -27,8 +27,17 @@ const parentDocument = ref(null)
 const showRenderedMarkdown = ref(true)
 
 const isImage = computed(() => props.document?.file_type === 'image' || props.document?.metadata?.file_type === 'image')
+
+const isPdf = computed(() => {
+  const mimeType = props.document?.mime_type || props.document?.metadata?.mime_type
+  const fileName = props.document?.file_name || props.document?.metadata?.file_name || ''
+  return mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')
+})
+
 const isText = computed(() => {
   const type = props.document?.file_type || props.document?.metadata?.file_type
+  // PDFs should not be treated as text
+  if (isPdf.value) return false
   return type === 'text' || type === 'document'
 })
 
@@ -107,6 +116,12 @@ const loadParentDocument = async () => {
 const openOriginalPDF = () => {
   if (parentFilePath.value) {
     window.open(parentFilePath.value, '_blank')
+  }
+}
+
+const openPdfFile = () => {
+  if (filePath.value) {
+    window.open(filePath.value, '_blank')
   }
 }
 
@@ -290,6 +305,34 @@ onUnmounted(() => {
                       <kbd class="px-1.5 py-0.5 rounded bg-white/20 text-xs font-mono">Z</kbd>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <!-- PDF Preview -->
+              <div v-else-if="isPdf" class="flex flex-col items-center justify-center min-h-[400px]">
+                <div class="text-center">
+                  <div class="relative mx-auto w-24 h-24 mb-6">
+                    <svg class="w-full h-full text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M14,2H6C4.9,2 4,2.9 4,4V20C4,21.1 4.9,22 6,22H18C19.1,22 20,21.1 20,20V8L14,2M18,20H6V4H13V9H18V20M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.92,12.31 10.92,12.31Z" />
+                    </svg>
+                  </div>
+                  <h4 class="text-lg font-display font-semibold text-text-primary mb-2">
+                    {{ fileName }}
+                  </h4>
+                  <p class="text-text-muted mb-6">PDFファイル</p>
+                  <button
+                    @click="openPdfFile"
+                    class="px-6 py-3 bg-accent text-bg-primary font-medium rounded-xl
+                           hover:bg-accent-hover hover:shadow-glow-accent
+                           active:scale-[0.98] transition-all duration-200
+                           inline-flex items-center gap-2"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    PDFを新しいタブで開く
+                  </button>
                 </div>
               </div>
 
