@@ -24,21 +24,30 @@ const showClipboardModal = ref(false)
 
 // Filter state
 const selectedCollection = ref('')
-const selectedFileType = ref('')
+const selectedFileTypes = ref([])
 
 const fileTypeOptions = [
-  { value: 'text', label: 'テキスト' },
-  { value: 'image', label: '画像' },
-  { value: 'document', label: 'PDF' }
+  { value: 'text', label: 'テキスト', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { value: 'image', label: '画像', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { value: 'document', label: 'PDF', icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' }
 ]
 
+const toggleFileType = (type) => {
+  const index = selectedFileTypes.value.indexOf(type)
+  if (index === -1) {
+    selectedFileTypes.value.push(type)
+  } else {
+    selectedFileTypes.value.splice(index, 1)
+  }
+}
+
 // Watch filters and refetch documents
-watch([selectedCollection, selectedFileType], async () => {
+watch([selectedCollection, selectedFileTypes], async () => {
   await documentsStore.fetchDocuments({
     collection_id: selectedCollection.value || undefined,
-    file_type: selectedFileType.value || undefined
+    file_types: selectedFileTypes.value.length > 0 ? selectedFileTypes.value : undefined
   })
-})
+}, { deep: true })
 
 // Multi-select state
 const isSelectionMode = ref(false)
@@ -164,7 +173,7 @@ const totalPages = computed(() => documentsStore.pagination?.pages || 1)
 const handleClipboardUploaded = async () => {
   await documentsStore.fetchDocuments({
     collection_id: selectedCollection.value || undefined,
-    file_type: selectedFileType.value || undefined
+    file_types: selectedFileTypes.value.length > 0 ? selectedFileTypes.value : undefined
   })
   await documentsStore.fetchStats()
 }
@@ -257,7 +266,7 @@ const handleUpload = async () => {
   showUploadModal.value = false
   await documentsStore.fetchDocuments({
     collection_id: selectedCollection.value || undefined,
-    file_type: selectedFileType.value || undefined
+    file_types: selectedFileTypes.value.length > 0 ? selectedFileTypes.value : undefined
   })
   await documentsStore.fetchStats()
 }
@@ -341,10 +350,10 @@ const changePage = (page) => {
     </div>
 
     <!-- Filters -->
-    <div class="flex flex-wrap items-center gap-4 mb-6">
+    <div class="flex flex-wrap items-center gap-3 mb-6">
       <select
         v-model="selectedCollection"
-        class="px-4 py-2.5 bg-bg-secondary/60 border border-border/50 rounded-xl
+        class="px-4 py-2.5 bg-bg-primary/50 border border-border/50 rounded-xl
                text-text-secondary text-sm
                focus:outline-none focus:border-accent/50 focus:shadow-glow-input
                transition-all duration-200 cursor-pointer"
@@ -355,25 +364,42 @@ const changePage = (page) => {
         </option>
       </select>
 
-      <select
-        v-model="selectedFileType"
-        class="px-4 py-2.5 bg-bg-secondary/60 border border-border/50 rounded-xl
-               text-text-secondary text-sm
-               focus:outline-none focus:border-accent/50 focus:shadow-glow-input
-               transition-all duration-200 cursor-pointer"
-      >
-        <option value="">すべてのタイプ</option>
-        <option v-for="opt in fileTypeOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
+      <!-- File Type Multi-Select -->
+      <div class="flex items-center gap-2">
+        <span class="text-text-muted text-sm">タイプ:</span>
+        <div class="flex gap-1.5">
+          <button
+            v-for="option in fileTypeOptions"
+            :key="option.value"
+            @click="toggleFileType(option.value)"
+            :class="[
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 border',
+              selectedFileTypes.includes(option.value)
+                ? 'bg-accent/20 border-accent/50 text-accent'
+                : 'bg-bg-primary/50 border-border/50 text-text-secondary hover:border-accent/30 hover:text-text-primary'
+            ]"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="option.icon" />
+            </svg>
+            {{ option.label }}
+          </button>
+        </div>
+        <button
+          v-if="selectedFileTypes.length > 0"
+          @click="selectedFileTypes = []"
+          class="text-xs text-text-muted hover:text-text-secondary transition-colors"
+        >
+          クリア
+        </button>
+      </div>
 
       <button
-        v-if="selectedCollection || selectedFileType"
-        @click="selectedCollection = ''; selectedFileType = ''"
+        v-if="selectedCollection"
+        @click="selectedCollection = ''"
         class="text-sm text-text-muted hover:text-text-secondary transition-colors"
       >
-        フィルタをクリア
+        コレクションをクリア
       </button>
     </div>
 

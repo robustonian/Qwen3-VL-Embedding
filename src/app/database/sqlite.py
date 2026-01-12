@@ -156,7 +156,7 @@ class SQLiteManager:
         self,
         limit: int = 50,
         offset: int = 0,
-        file_type: str = None,
+        file_types: List[str] = None,
         collection_id: str = None,
         order_by: str = "created_at",
         order_dir: str = "DESC"
@@ -164,9 +164,10 @@ class SQLiteManager:
         conditions = []
         params = []
 
-        if file_type:
-            conditions.append("file_type = ?")
-            params.append(file_type)
+        if file_types:
+            placeholders = ",".join("?" * len(file_types))
+            conditions.append(f"file_type IN ({placeholders})")
+            params.extend(file_types)
         if collection_id:
             conditions.append("collection_id = ?")
             params.append(collection_id)
@@ -181,13 +182,14 @@ class SQLiteManager:
         params.extend([limit, offset])
         return await self._fetch_all(query, tuple(params))
 
-    async def count_files(self, file_type: str = None, collection_id: str = None) -> int:
+    async def count_files(self, file_types: List[str] = None, collection_id: str = None) -> int:
         conditions = []
         params = []
 
-        if file_type:
-            conditions.append("file_type = ?")
-            params.append(file_type)
+        if file_types:
+            placeholders = ",".join("?" * len(file_types))
+            conditions.append(f"file_type IN ({placeholders})")
+            params.extend(file_types)
         if collection_id:
             conditions.append("collection_id = ?")
             params.append(collection_id)

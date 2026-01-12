@@ -342,18 +342,18 @@ class DocumentService:
         self,
         limit: int = 50,
         offset: int = 0,
-        file_type: str = None,
+        file_types: List[str] = None,
         collection_id: str = None
     ) -> Dict[str, Any]:
         """Get documents with pagination."""
         files = await sqlite_manager.get_files(
             limit=limit,
             offset=offset,
-            file_type=file_type,
+            file_types=file_types,
             collection_id=collection_id
         )
         total = await sqlite_manager.count_files(
-            file_type=file_type,
+            file_types=file_types,
             collection_id=collection_id
         )
 

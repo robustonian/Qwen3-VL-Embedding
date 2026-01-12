@@ -219,14 +219,17 @@ async def upload_documents_stream(
 async def list_documents(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    file_type: Optional[str] = None,
+    file_type: Optional[str] = None,  # Single type (backward compatibility)
+    file_types: Optional[List[str]] = Query(None),  # Multiple types
     collection_id: Optional[str] = None
 ):
     """List documents with pagination."""
+    # file_types takes precedence over file_type
+    types_to_filter = file_types if file_types else ([file_type] if file_type else None)
     return await document_service.get_documents(
         limit=limit,
         offset=offset,
-        file_type=file_type,
+        file_types=types_to_filter,
         collection_id=collection_id
     )
 
