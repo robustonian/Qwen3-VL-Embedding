@@ -277,6 +277,38 @@ onUnmounted(() => {
             <div class="relative z-10 flex-1 overflow-auto p-6">
               <!-- Image Preview -->
               <div v-if="isImage" class="flex flex-col items-center justify-center min-h-[400px]">
+                <!-- PDF Page Banner -->
+                <div
+                  v-if="isPdfPage && parentDocument"
+                  class="w-full max-w-2xl mb-4 px-4 py-3 rounded-xl bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20 backdrop-blur-sm"
+                >
+                  <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3 min-w-0">
+                      <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M14,2H6C4.9,2 4,2.9 4,4V20C4,21.1 4.9,22 6,22H18C19.1,22 20,21.1 20,20V8L14,2M18,20H6V4H13V9H18V20M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.92,12.31 10.92,12.31Z" />
+                        </svg>
+                      </div>
+                      <div class="min-w-0">
+                        <p class="text-sm text-text-primary font-medium truncate">{{ parentDocument.file_name }}</p>
+                        <p class="text-xs text-text-muted">PDFから抽出されたページ</p>
+                      </div>
+                    </div>
+                    <button
+                      @click="openOriginalPDF"
+                      class="flex-shrink-0 px-4 py-2 rounded-lg bg-red-500/20 text-red-400 text-sm font-medium
+                             hover:bg-red-500/30 hover:text-red-300 active:scale-95
+                             transition-all duration-200 flex items-center gap-2"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      PDFを開く
+                    </button>
+                  </div>
+                </div>
+
                 <!-- Loading skeleton -->
                 <div v-if="!imageLoaded" class="skeleton-shimmer bg-bg-tertiary rounded-xl w-full max-w-2xl h-[400px]"></div>
 
