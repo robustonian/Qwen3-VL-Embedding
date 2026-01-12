@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { marked } from 'marked'
 import api from '@/api/client'
 import { useToastStore } from '@/stores/toast'
 
@@ -22,11 +23,23 @@ const loading = ref(false)
 const copied = ref(false)
 const imageLoaded = ref(false)
 const imageZoomed = ref(false)
+const parentDocument = ref(null)
+const showRenderedMarkdown = ref(true)
 
 const isImage = computed(() => props.document?.file_type === 'image' || props.document?.metadata?.file_type === 'image')
 const isText = computed(() => {
   const type = props.document?.file_type || props.document?.metadata?.file_type
   return type === 'text' || type === 'document'
+})
+
+const isMarkdown = computed(() => {
+  const name = props.document?.file_name || props.document?.metadata?.file_name || ''
+  return name.endsWith('.md') || name.endsWith('.markdown')
+})
+
+const isPdfPage = computed(() => {
+  const parentId = props.document?.parent_document_id || props.document?.metadata?.parent_document_id
+  return !!parentId
 })
 
 const fileName = computed(() => props.document?.file_name || props.document?.metadata?.file_name || 'Unknown')
@@ -39,13 +52,29 @@ const filePath = computed(() => {
 
 const documentId = computed(() => props.document?.id)
 
+const renderedMarkdown = computed(() => {
+  if (!isMarkdown.value || !textContent.value) return ''
+  return marked(textContent.value)
+})
+
+const parentFilePath = computed(() => {
+  if (!parentDocument.value?.file_path) return ''
+  const relativePath = parentDocument.value.file_path.replace(/^.*\/uploads\//, '')
+  return `/files/${relativePath}`
+})
+
 watch(() => props.show, async (newVal) => {
   if (newVal && isText.value && documentId.value) {
     await loadTextContent()
   }
+  if (newVal && isPdfPage.value) {
+    await loadParentDocument()
+  }
   if (newVal) {
     imageLoaded.value = false
     imageZoomed.value = false
+    parentDocument.value = null
+    showRenderedMarkdown.value = true
   }
 })
 
@@ -61,6 +90,28 @@ const loadTextContent = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const loadParentDocument = async () => {
+  const parentId = props.document?.parent_document_id || props.document?.metadata?.parent_document_id
+  if (!parentId) return
+
+  try {
+    const response = await api.get(`/documents/${parentId}`)
+    parentDocument.value = response.data
+  } catch (error) {
+    console.error('Failed to load parent document:', error)
+  }
+}
+
+const openOriginalPDF = () => {
+  if (parentFilePath.value) {
+    window.open(parentFilePath.value, '_blank')
+  }
+}
+
+const toggleMarkdownView = () => {
+  showRenderedMarkdown.value = !showRenderedMarkdown.value
 }
 
 const copyContent = async () => {
@@ -179,8 +230,14 @@ onUnmounted(() => {
                 </button>
                 <div class="min-w-0">
                   <h3 class="text-text-primary font-display font-semibold truncate">{{ fileName }}</h3>
-                  <p class="text-xs text-text-muted">
-                    {{ isImage ? '画像' : isText ? 'テキスト' : 'ファイル' }}
+                  <p class="text-xs text-text-muted flex items-center gap-2">
+                    <span>{{ isImage ? '画像' : isMarkdown ? 'Markdown' : isText ? 'テキスト' : 'ファイル' }}</span>
+                    <span v-if="isPdfPage && parentDocument" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent/10 text-accent text-xs">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      {{ parentDocument.file_name }}
+                    </span>
                   </p>
                 </div>
               </div>
@@ -245,7 +302,29 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <div v-else class="relative">
-                  <pre class="bg-bg-tertiary/50 backdrop-blur-sm border border-white/5 rounded-xl p-5 overflow-auto max-h-[60vh] text-sm text-text-secondary font-mono whitespace-pre-wrap break-words leading-relaxed">{{ textContent }}</pre>
+                  <!-- Markdown toggle button -->
+                  <div v-if="isMarkdown" class="flex justify-end mb-2">
+                    <button
+                      @click="toggleMarkdownView"
+                      class="px-3 py-1.5 text-xs rounded-lg bg-bg-tertiary/80 border border-white/10 text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
+                    >
+                      {{ showRenderedMarkdown ? 'ソースを表示' : 'レンダリング表示' }}
+                    </button>
+                  </div>
+
+                  <!-- Markdown Rendered View -->
+                  <div
+                    v-if="isMarkdown && showRenderedMarkdown"
+                    class="markdown-content bg-bg-tertiary/50 backdrop-blur-sm border border-white/5 rounded-xl p-5 overflow-auto max-h-[60vh] text-sm text-text-secondary prose prose-invert prose-sm max-w-none"
+                    v-html="renderedMarkdown"
+                  ></div>
+
+                  <!-- Plain Text View -->
+                  <pre
+                    v-else
+                    class="bg-bg-tertiary/50 backdrop-blur-sm border border-white/5 rounded-xl p-5 overflow-auto max-h-[60vh] text-sm text-text-secondary font-mono whitespace-pre-wrap break-words leading-relaxed"
+                  >{{ textContent }}</pre>
+
                   <!-- Line count -->
                   <div class="absolute bottom-2 right-2 px-2 py-1 rounded-lg bg-bg-primary/80 text-xs text-text-muted">
                     {{ textContent.split('\n').length }} 行
@@ -284,6 +363,19 @@ onUnmounted(() => {
 
               <!-- Right Actions -->
               <div class="flex items-center gap-2">
+                <!-- Open Original PDF Button -->
+                <button
+                  v-if="isPdfPage && parentDocument"
+                  @click="openOriginalPDF"
+                  class="action-btn action-btn-accent group"
+                  title="元のPDFを開く"
+                >
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span class="action-btn-tooltip">元のPDFを開く</span>
+                </button>
+                <!-- Copy Button -->
                 <button
                   v-if="isText"
                   @click="copyContent"
@@ -299,6 +391,7 @@ onUnmounted(() => {
                   </svg>
                   <span class="action-btn-tooltip">{{ copied ? 'コピーしました' : 'コピー' }}</span>
                 </button>
+                <!-- Download Button -->
                 <button
                   @click="downloadFile"
                   class="action-btn action-btn-accent group"
@@ -414,5 +507,76 @@ onUnmounted(() => {
   @apply absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2
          bg-bg-primary/95 border-r border-b border-white/10
          rotate-45;
+}
+
+/* Markdown Content Styles */
+.markdown-content {
+  line-height: 1.7;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  @apply text-text-primary font-display font-semibold mt-6 mb-3;
+}
+
+.markdown-content h1 { @apply text-2xl; }
+.markdown-content h2 { @apply text-xl; }
+.markdown-content h3 { @apply text-lg; }
+
+.markdown-content p {
+  @apply mb-4;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  @apply ml-6 mb-4;
+}
+
+.markdown-content ul { @apply list-disc; }
+.markdown-content ol { @apply list-decimal; }
+
+.markdown-content li {
+  @apply mb-1;
+}
+
+.markdown-content code {
+  @apply px-1.5 py-0.5 rounded bg-bg-primary/50 font-mono text-xs text-accent;
+}
+
+.markdown-content pre {
+  @apply p-4 rounded-lg bg-bg-primary/50 overflow-auto mb-4;
+}
+
+.markdown-content pre code {
+  @apply p-0 bg-transparent;
+}
+
+.markdown-content blockquote {
+  @apply pl-4 border-l-2 border-accent/50 italic text-text-muted mb-4;
+}
+
+.markdown-content a {
+  @apply text-accent hover:underline;
+}
+
+.markdown-content table {
+  @apply w-full border-collapse mb-4;
+}
+
+.markdown-content th,
+.markdown-content td {
+  @apply border border-border/30 px-3 py-2 text-left;
+}
+
+.markdown-content th {
+  @apply bg-bg-tertiary/50 font-semibold;
+}
+
+.markdown-content hr {
+  @apply border-border/30 my-6;
 }
 </style>

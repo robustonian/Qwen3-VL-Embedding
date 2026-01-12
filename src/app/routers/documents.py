@@ -127,6 +127,20 @@ async def get_document_content(doc_id: str):
         logger.error(f"Failed to read file content: {e}")
         raise HTTPException(status_code=500, detail="Failed to read file")
 
+@router.get("/{doc_id}/parent")
+async def get_parent_document(doc_id: str):
+    """Get the parent document for a page image (e.g., original PDF for extracted pages)."""
+    doc = await document_service.get_document(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    parent_id = doc.get("parent_document_id")
+    if not parent_id:
+        return {"parent": None}
+
+    parent = await document_service.get_document(parent_id)
+    return {"parent": parent}
+
 @router.delete("/{doc_id}")
 async def delete_document(doc_id: str):
     """Delete a single document."""

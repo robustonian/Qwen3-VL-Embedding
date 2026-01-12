@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useDocumentsStore } from '@/stores/documents'
 import { useCollectionsStore } from '@/stores/collections'
 import { useToastStore } from '@/stores/toast'
 import PreviewModal from '@/components/PreviewModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ClipboardUploadModal from '@/components/ClipboardUploadModal.vue'
 
 const documentsStore = useDocumentsStore()
 const collectionsStore = useCollectionsStore()
@@ -19,6 +20,7 @@ const isDragging = ref(false)
 
 const showPreview = ref(false)
 const selectedDocument = ref(null)
+const showClipboardModal = ref(false)
 
 // Multi-select state
 const isSelectionMode = ref(false)
@@ -126,8 +128,31 @@ const isLoading = computed(() => documentsStore.loading)
 const currentPage = computed(() => documentsStore.pagination?.page || 1)
 const totalPages = computed(() => documentsStore.pagination?.pages || 1)
 
+const handleClipboardUploaded = async () => {
+  await documentsStore.fetchDocuments()
+  await documentsStore.fetchStats()
+}
+
+const handlePaste = (e) => {
+  // Only handle if no modal is open and not focused in an input
+  if (showUploadModal.value || showClipboardModal.value || showPreview.value) return
+  if (document.activeElement?.tagName === 'INPUT' ||
+      document.activeElement?.tagName === 'TEXTAREA') return
+
+  // Check if there's clipboard content
+  if (e.clipboardData?.items?.length > 0) {
+    e.preventDefault()
+    showClipboardModal.value = true
+  }
+}
+
 onMounted(async () => {
   await documentsStore.fetchDocuments()
+  document.addEventListener('paste', handlePaste)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('paste', handlePaste)
 })
 
 const handleFileSelect = (e) => {
@@ -139,7 +164,10 @@ const addFiles = (files) => {
   const validFiles = files.filter(f =>
     f.type.startsWith('image/') ||
     f.type === 'application/pdf' ||
-    f.type.includes('document')
+    f.type === 'text/plain' ||
+    f.type === 'text/markdown' ||
+    f.name.endsWith('.txt') ||
+    f.name.endsWith('.md')
   )
   uploadFiles.value.push(...validFiles)
 }
@@ -228,6 +256,16 @@ const changePage = (page) => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
           </svg>
           {{ isSelectionMode ? '選択中' : '選択' }}
+        </button>
+        <button
+          @click="showClipboardModal = true"
+          class="btn btn-secondary flex items-center gap-2"
+          title="クリップボードから貼り付け (Ctrl+V)"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          貼り付け
         </button>
         <button
           @click="showUploadModal = true"
@@ -470,7 +508,7 @@ const changePage = (page) => {
                     <input
                       type="file"
                       multiple
-                      accept="image/*,.pdf"
+                      accept="image/*,.pdf,.txt,.md"
                       class="hidden"
                       id="file-input"
                       @change="handleFileSelect"
@@ -584,6 +622,13 @@ const changePage = (page) => {
       type="danger"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
+    />
+
+    <!-- Clipboard Upload Modal -->
+    <ClipboardUploadModal
+      :show="showClipboardModal"
+      @close="showClipboardModal = false"
+      @uploaded="handleClipboardUploaded"
     />
   </div>
 </template>

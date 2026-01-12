@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # File settings
     MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
     ALLOWED_IMAGE_TYPES: set = {"image/jpeg", "image/png", "image/gif", "image/webp"}
-    ALLOWED_DOCUMENT_TYPES: set = {"application/pdf", "text/plain"}
+    ALLOWED_DOCUMENT_TYPES: set = {"application/pdf", "text/plain", "text/markdown"}
 
     class Config:
         env_prefix = "QWEN_SEARCH_"
