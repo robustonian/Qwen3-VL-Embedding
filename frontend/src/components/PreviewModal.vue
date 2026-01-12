@@ -73,17 +73,20 @@ const parentFilePath = computed(() => {
 })
 
 watch(() => props.show, async (newVal) => {
-  if (newVal && isText.value && documentId.value) {
-    await loadTextContent()
-  }
-  if (newVal && isPdfPage.value) {
-    await loadParentDocument()
-  }
   if (newVal) {
+    // Reset state FIRST before loading data
     imageLoaded.value = false
     imageZoomed.value = false
     parentDocument.value = null
     showRenderedMarkdown.value = true
+
+    // Then load data
+    if (isText.value && documentId.value) {
+      await loadTextContent()
+    }
+    if (isPdfPage.value) {
+      await loadParentDocument()
+    }
   }
 })
 
