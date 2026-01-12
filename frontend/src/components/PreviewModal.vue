@@ -100,6 +100,26 @@ watch(() => props.show, async (newVal) => {
   }
 })
 
+// Watch for document changes during navigation (when modal is already open)
+watch(() => documentId.value, async (newId, oldId) => {
+  if (props.show && newId && newId !== oldId) {
+    // Reset state
+    imageLoaded.value = false
+    imageZoomed.value = false
+    parentDocument.value = null
+    showRenderedMarkdown.value = true
+    textContent.value = ''
+
+    // Load new content
+    if (isText.value) {
+      await loadTextContent()
+    }
+    if (isPdfPage.value) {
+      await loadParentDocument()
+    }
+  }
+})
+
 const loadTextContent = async () => {
   loading.value = true
   try {
