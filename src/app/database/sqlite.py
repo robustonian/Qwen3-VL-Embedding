@@ -165,9 +165,18 @@ class SQLiteManager:
         params = []
 
         if file_types:
-            placeholders = ",".join("?" * len(file_types))
-            conditions.append(f"file_type IN ({placeholders})")
-            params.extend(file_types)
+            type_conditions = []
+            for ft in file_types:
+                if ft == 'text':
+                    type_conditions.append("file_type = 'text'")
+                elif ft == 'image':
+                    # Direct images only (no parent = direct upload)
+                    type_conditions.append("(file_type = 'image' AND (parent_document_id IS NULL OR parent_document_id = ''))")
+                elif ft == 'pdf':
+                    # PDF pages (has parent) + original PDFs
+                    type_conditions.append("((file_type = 'image' AND parent_document_id IS NOT NULL AND parent_document_id != '') OR file_type = 'document')")
+            if type_conditions:
+                conditions.append(f"({' OR '.join(type_conditions)})")
         if collection_id:
             conditions.append("collection_id = ?")
             params.append(collection_id)
@@ -187,9 +196,18 @@ class SQLiteManager:
         params = []
 
         if file_types:
-            placeholders = ",".join("?" * len(file_types))
-            conditions.append(f"file_type IN ({placeholders})")
-            params.extend(file_types)
+            type_conditions = []
+            for ft in file_types:
+                if ft == 'text':
+                    type_conditions.append("file_type = 'text'")
+                elif ft == 'image':
+                    # Direct images only (no parent = direct upload)
+                    type_conditions.append("(file_type = 'image' AND (parent_document_id IS NULL OR parent_document_id = ''))")
+                elif ft == 'pdf':
+                    # PDF pages (has parent) + original PDFs
+                    type_conditions.append("((file_type = 'image' AND parent_document_id IS NOT NULL AND parent_document_id != '') OR file_type = 'document')")
+            if type_conditions:
+                conditions.append(f"({' OR '.join(type_conditions)})")
         if collection_id:
             conditions.append("collection_id = ?")
             params.append(collection_id)
