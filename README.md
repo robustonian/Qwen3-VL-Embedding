@@ -13,6 +13,7 @@
 [![ModelScope - Reranker](https://img.shields.io/badge/ModelScope-Reranker-blue)](https://modelscope.cn/organization/qwen/qwen3-vl-reranker)
 [![Technical Report](https://img.shields.io/badge/📄-Technical%20Report-red)](assets/qwen3vlembedding_technical_report.pdf)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Zenn - 使い方](https://img.shields.io/badge/Zenn-使い方-3EA8FF?logo=zenn)](https://zenn.dev/robustonian/articles/qwen3-vl-embedding_search)
 <!-- Brief description -->
 **State-of-the-art multimodal embedding and reranking models built on Qwen3-VL, supporting text, images, screenshots, videos, and mixed-modal inputs for advanced information retrieval and cross-modal understanding.**
 
