@@ -268,7 +268,7 @@ const formatDate = (dateStr) => {
                     v-model="newCollectionName"
                     type="text"
                     placeholder="コレクション名を入力"
-                    class="input-field w-full"
+                    class="input w-full"
                     @keydown.enter="handleCreate"
                   />
                 </div>
@@ -278,7 +278,7 @@ const formatDate = (dateStr) => {
                     v-model="newCollectionDescription"
                     placeholder="コレクションの説明を入力"
                     rows="3"
-                    class="input-field w-full resize-none"
+                    class="input w-full resize-none"
                   ></textarea>
                 </div>
               </div>
@@ -347,7 +347,7 @@ const formatDate = (dateStr) => {
                     v-model="editingCollection.name"
                     type="text"
                     placeholder="コレクション名を入力"
-                    class="input-field w-full"
+                    class="input w-full"
                     @keydown.enter="handleUpdate"
                   />
                 </div>
@@ -357,7 +357,7 @@ const formatDate = (dateStr) => {
                     v-model="editingCollection.description"
                     placeholder="コレクションの説明を入力"
                     rows="3"
-                    class="input-field w-full resize-none"
+                    class="input w-full resize-none"
                   ></textarea>
                 </div>
               </div>

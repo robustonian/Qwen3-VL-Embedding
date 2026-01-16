@@ -179,7 +179,7 @@ const handleRecentSearchClick = (search) => {
             </div>
             <div>
               <p class="text-lg font-display font-semibold text-text-primary">{{ stats.total_collections }}</p>
-              <p class="text-[10px] text-text-muted uppercase tracking-wide">コレクション</p>
+              <p class="text-[10px] text-text-muted uppercase tracking-wide whitespace-nowrap">コレクション</p>
             </div>
           </div>
         </div>
