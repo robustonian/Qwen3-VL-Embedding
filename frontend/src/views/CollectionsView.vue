@@ -146,7 +146,7 @@ const formatDate = (dateStr) => {
       </p>
       <button
         @click="openCreateModal"
-        class="btn btn-primary flex items-center gap-2"
+        class="btn btn-primary inline-flex items-center gap-2"
       >
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -290,14 +290,14 @@ const formatDate = (dateStr) => {
               <div class="flex justify-end gap-3 p-5 pt-0">
                 <button
                   @click="showCreateModal = false"
-                  class="btn-ghost"
+                  class="btn btn-ghost"
                 >
                   キャンセル
                 </button>
                 <button
                   @click="handleCreate"
                   :disabled="!newCollectionName.trim()"
-                  class="btn-primary"
+                  class="btn btn-primary"
                 >
                   作成
                 </button>
@@ -369,14 +369,14 @@ const formatDate = (dateStr) => {
               <div class="flex justify-end gap-3 p-5 pt-0">
                 <button
                   @click="showEditModal = false"
-                  class="btn-ghost"
+                  class="btn btn-ghost"
                 >
                   キャンセル
                 </button>
                 <button
                   @click="handleUpdate"
                   :disabled="!editingCollection.name.trim()"
-                  class="btn-primary"
+                  class="btn btn-primary"
                 >
                   保存
                 </button>
@@ -424,13 +424,13 @@ const formatDate = (dateStr) => {
               <div class="flex gap-3 p-4 border-t border-border/50 bg-bg-tertiary/30">
                 <button
                   @click="showDeleteModal = false"
-                  class="btn-ghost flex-1"
+                  class="btn btn-ghost flex-1"
                 >
                   キャンセル
                 </button>
                 <button
                   @click="handleDelete"
-                  class="btn-danger flex-1"
+                  class="btn btn-danger flex-1"
                 >
                   削除する
                 </button>
