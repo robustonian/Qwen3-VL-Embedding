@@ -12,7 +12,7 @@ router = APIRouter(prefix="/search", tags=["search"])
 class TextSearchRequest(BaseModel):
     query: str
     limit: int = 20
-    file_type: Optional[str] = None
+    file_types: Optional[List[str]] = None  # ['text', 'image', 'pdf']
     collection_id: Optional[str] = None
 
 class SearchResultItem(BaseModel):
@@ -43,7 +43,7 @@ async def search_by_text(request: TextSearchRequest):
     return await search_service.search_by_text(
         query=request.query,
         limit=request.limit,
-        file_type=request.file_type,
+        file_types=request.file_types,
         collection_id=request.collection_id
     )
 
@@ -51,7 +51,7 @@ async def search_by_text(request: TextSearchRequest):
 async def search_by_image(
     image: UploadFile = File(...),
     limit: int = Form(20),
-    file_type: Optional[str] = Form(None),
+    file_types: Optional[str] = Form(None),  # JSON string array, e.g. '["text","image","pdf"]'
     collection_id: Optional[str] = Form(None)
 ):
     """Search documents by image."""
@@ -61,10 +61,20 @@ async def search_by_image(
 
     image_data = await image.read()
 
+    # Parse file_types from JSON string if provided
+    parsed_file_types = None
+    if file_types:
+        import json
+        try:
+            parsed_file_types = json.loads(file_types)
+        except json.JSONDecodeError:
+            # Fallback: treat as single value
+            parsed_file_types = [file_types]
+
     return await search_service.search_by_image(
         image_data=image_data,
         limit=limit,
-        file_type=file_type,
+        file_types=parsed_file_types,
         collection_id=collection_id
     )
 
@@ -73,7 +83,7 @@ async def search_multimodal(
     text: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
     limit: int = Form(20),
-    file_type: Optional[str] = Form(None),
+    file_types: Optional[str] = Form(None),  # JSON string array
     collection_id: Optional[str] = Form(None)
 ):
     """Search with both text and image."""
@@ -86,11 +96,20 @@ async def search_multimodal(
             raise HTTPException(status_code=400, detail="File must be an image")
         image_data = await image.read()
 
+    # Parse file_types from JSON string if provided
+    parsed_file_types = None
+    if file_types:
+        import json
+        try:
+            parsed_file_types = json.loads(file_types)
+        except json.JSONDecodeError:
+            parsed_file_types = [file_types]
+
     return await search_service.search_multimodal(
         text=text,
         image_data=image_data,
         limit=limit,
-        file_type=file_type,
+        file_types=parsed_file_types,
         collection_id=collection_id
     )
 

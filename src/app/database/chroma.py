@@ -141,5 +141,42 @@ class ChromaManager:
         )
         logger.info("ChromaDB collection reset")
 
+    def migrate_add_parent_document_id(self) -> int:
+        """Add parent_document_id field to existing records that don't have it.
+
+        This migration is needed because older records may not have this field,
+        which causes filtering to fail (ChromaDB $eq/$ne only work when field exists).
+
+        Returns:
+            Number of records updated.
+        """
+        # Get all documents with their metadata
+        all_docs = self._collection.get(include=["metadatas"])
+
+        if not all_docs["ids"]:
+            logger.info("No documents to migrate")
+            return 0
+
+        updated_count = 0
+        for i, doc_id in enumerate(all_docs["ids"]):
+            metadata = all_docs["metadatas"][i] if all_docs["metadatas"] else {}
+
+            # Check if parent_document_id field is missing
+            if "parent_document_id" not in metadata:
+                # Add the field with empty string (default for direct uploads)
+                metadata["parent_document_id"] = ""
+                # Also ensure page_number exists
+                if "page_number" not in metadata:
+                    metadata["page_number"] = 0
+
+                self._collection.update(
+                    ids=[doc_id],
+                    metadatas=[metadata]
+                )
+                updated_count += 1
+
+        logger.info(f"Migrated {updated_count} ChromaDB records with parent_document_id field")
+        return updated_count
+
 # Singleton instance
 chroma_manager = ChromaManager()

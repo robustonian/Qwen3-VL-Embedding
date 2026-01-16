@@ -22,7 +22,10 @@ CREATE TABLE IF NOT EXISTS files (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     thumbnail_path TEXT,
     collection_id TEXT,
-    FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE SET NULL
+    parent_document_id TEXT,
+    page_number INTEGER,
+    FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE SET NULL,
+    FOREIGN KEY (parent_document_id) REFERENCES files(id) ON DELETE CASCADE
 );
 
 -- Collections table
@@ -49,6 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_files_file_type ON files(file_type);
 CREATE INDEX IF NOT EXISTS idx_files_created_at ON files(created_at);
 CREATE INDEX IF NOT EXISTS idx_files_collection_id ON files(collection_id);
 CREATE INDEX IF NOT EXISTS idx_files_content_hash ON files(content_hash);
+CREATE INDEX IF NOT EXISTS idx_files_parent_document_id ON files(parent_document_id);
 CREATE INDEX IF NOT EXISTS idx_collections_name ON collections(name);
 """
 
@@ -58,10 +62,40 @@ class SQLiteManager:
 
     async def initialize(self):
         """Initialize database with schema."""
+        # Run migrations first for existing databases
+        await self._migrate()
+        # Then execute full schema (creates tables/indexes if not exist)
         async with aiosqlite.connect(self.db_path) as db:
             await db.executescript(SCHEMA)
             await db.commit()
         logger.info(f"SQLite database initialized at {self.db_path}")
+
+    async def _migrate(self):
+        """Run database migrations for existing databases."""
+        async with aiosqlite.connect(self.db_path) as db:
+            # Check if files table exists
+            cursor = await db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='files'"
+            )
+            if not await cursor.fetchone():
+                # Table doesn't exist yet, skip migration
+                return
+
+            # Check existing columns
+            cursor = await db.execute("PRAGMA table_info(files)")
+            columns = [row[1] for row in await cursor.fetchall()]
+
+            # Add parent_document_id if not exists
+            if "parent_document_id" not in columns:
+                await db.execute("ALTER TABLE files ADD COLUMN parent_document_id TEXT")
+                logger.info("Added parent_document_id column to files table")
+
+            # Add page_number if not exists
+            if "page_number" not in columns:
+                await db.execute("ALTER TABLE files ADD COLUMN page_number INTEGER")
+                logger.info("Added page_number column to files table")
+
+            await db.commit()
 
     async def _execute(self, query: str, params: tuple = ()) -> None:
         async with aiosqlite.connect(self.db_path) as db:
@@ -94,15 +128,18 @@ class SQLiteManager:
         file_size: int = None,
         content_hash: str = None,
         thumbnail_path: str = None,
-        collection_id: str = None
+        collection_id: str = None,
+        parent_document_id: str = None,
+        page_number: int = None
     ) -> Dict:
         query = """
-        INSERT INTO files (id, file_name, file_path, file_type, mime_type, file_size, content_hash, thumbnail_path, collection_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO files (id, file_name, file_path, file_type, mime_type, file_size, content_hash, thumbnail_path, collection_id, parent_document_id, page_number)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         await self._execute(query, (
             file_id, file_name, file_path, file_type, mime_type,
-            file_size, content_hash, thumbnail_path, collection_id
+            file_size, content_hash, thumbnail_path, collection_id,
+            parent_document_id, page_number
         ))
         return await self.get_file(file_id)
 
@@ -119,7 +156,7 @@ class SQLiteManager:
         self,
         limit: int = 50,
         offset: int = 0,
-        file_type: str = None,
+        file_types: List[str] = None,
         collection_id: str = None,
         order_by: str = "created_at",
         order_dir: str = "DESC"
@@ -127,9 +164,19 @@ class SQLiteManager:
         conditions = []
         params = []
 
-        if file_type:
-            conditions.append("file_type = ?")
-            params.append(file_type)
+        if file_types:
+            type_conditions = []
+            for ft in file_types:
+                if ft == 'text':
+                    type_conditions.append("file_type = 'text'")
+                elif ft == 'image':
+                    # Direct images only (no parent = direct upload)
+                    type_conditions.append("(file_type = 'image' AND (parent_document_id IS NULL OR parent_document_id = ''))")
+                elif ft == 'pdf':
+                    # PDF pages (has parent) + original PDFs
+                    type_conditions.append("((file_type = 'image' AND parent_document_id IS NOT NULL AND parent_document_id != '') OR file_type = 'document')")
+            if type_conditions:
+                conditions.append(f"({' OR '.join(type_conditions)})")
         if collection_id:
             conditions.append("collection_id = ?")
             params.append(collection_id)
@@ -144,13 +191,23 @@ class SQLiteManager:
         params.extend([limit, offset])
         return await self._fetch_all(query, tuple(params))
 
-    async def count_files(self, file_type: str = None, collection_id: str = None) -> int:
+    async def count_files(self, file_types: List[str] = None, collection_id: str = None) -> int:
         conditions = []
         params = []
 
-        if file_type:
-            conditions.append("file_type = ?")
-            params.append(file_type)
+        if file_types:
+            type_conditions = []
+            for ft in file_types:
+                if ft == 'text':
+                    type_conditions.append("file_type = 'text'")
+                elif ft == 'image':
+                    # Direct images only (no parent = direct upload)
+                    type_conditions.append("(file_type = 'image' AND (parent_document_id IS NULL OR parent_document_id = ''))")
+                elif ft == 'pdf':
+                    # PDF pages (has parent) + original PDFs
+                    type_conditions.append("((file_type = 'image' AND parent_document_id IS NOT NULL AND parent_document_id != '') OR file_type = 'document')")
+            if type_conditions:
+                conditions.append(f"({' OR '.join(type_conditions)})")
         if collection_id:
             conditions.append("collection_id = ?")
             params.append(collection_id)

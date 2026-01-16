@@ -20,7 +20,7 @@ export const useSearchStore = defineStore('search', () => {
       const response = await api.post('/search/text', {
         query: text,
         limit: options.limit || 20,
-        file_type: options.fileType,
+        file_types: options.fileTypes,  // Array of types: ['text', 'image', 'pdf']
         collection_id: options.collectionId
       })
       results.value = response.data.results
@@ -38,7 +38,10 @@ export const useSearchStore = defineStore('search', () => {
       const formData = new FormData()
       formData.append('image', imageFile)
       formData.append('limit', options.limit || 20)
-      if (options.fileType) formData.append('file_type', options.fileType)
+      // Send file_types as JSON string for form data
+      if (options.fileTypes && options.fileTypes.length > 0) {
+        formData.append('file_types', JSON.stringify(options.fileTypes))
+      }
       if (options.collectionId) formData.append('collection_id', options.collectionId)
 
       const response = await api.post('/search/image', formData, {

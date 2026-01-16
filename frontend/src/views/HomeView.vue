@@ -6,6 +6,7 @@ import { useDocumentsStore } from '@/stores/documents'
 import { useToastStore } from '@/stores/toast'
 import PreviewModal from '@/components/PreviewModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ClipboardSearchModal from '@/components/ClipboardSearchModal.vue'
 
 const searchStore = useSearchStore()
 const collectionsStore = useCollectionsStore()
@@ -17,12 +18,53 @@ const searchImage = ref(null)
 const imagePreview = ref(null)
 const searchType = ref('text')
 const selectedCollection = ref('')
-const fileType = ref('')
+const selectedFileTypes = ref([])  // Multi-select: ['text', 'image', 'pdf']
 const isDragging = ref(false)
 const searchInputRef = ref(null)
 
+// File type options for multi-select
+const fileTypeOptions = [
+  { value: 'text', label: 'テキスト', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { value: 'image', label: '画像', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { value: 'pdf', label: 'PDF', icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' }
+]
+
+const toggleFileType = (type) => {
+  const index = selectedFileTypes.value.indexOf(type)
+  if (index === -1) {
+    selectedFileTypes.value.push(type)
+  } else {
+    selectedFileTypes.value.splice(index, 1)
+  }
+}
+
 const showPreview = ref(false)
 const selectedDocument = ref(null)
+const showClipboardSearchModal = ref(false)
+
+// Clipboard paste handler for image search
+const handlePaste = (e) => {
+  if (showClipboardSearchModal.value || showPreview.value) return
+  if (document.activeElement?.tagName === 'INPUT' ||
+      document.activeElement?.tagName === 'TEXTAREA') return
+
+  // Check for image in clipboard
+  const items = e.clipboardData?.items
+  if (items) {
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        showClipboardSearchModal.value = true
+        return
+      }
+    }
+  }
+}
+
+const handleClipboardSearch = async (imageFile) => {
+  setImageFile(imageFile)
+  await handleImageSearch()
+}
 
 const openPreview = (result) => {
   selectedDocument.value = result
@@ -32,6 +74,21 @@ const openPreview = (result) => {
 const closePreview = () => {
   showPreview.value = false
   selectedDocument.value = null
+}
+
+const navigatePreview = (direction) => {
+  if (!selectedDocument.value) return
+  const docs = searchStore.results
+  const currentIndex = docs.findIndex(d => d.id === selectedDocument.value.id)
+  if (currentIndex === -1) return
+
+  const newIndex = direction === 'prev'
+    ? currentIndex - 1
+    : currentIndex + 1
+
+  if (newIndex >= 0 && newIndex < docs.length) {
+    selectedDocument.value = docs[newIndex]
+  }
 }
 
 // Delete confirmation
@@ -67,7 +124,7 @@ const handleTextSearch = async () => {
   if (!searchQuery.value.trim()) return
   await searchStore.searchByText(searchQuery.value, {
     collectionId: selectedCollection.value || undefined,
-    fileType: fileType.value || undefined
+    fileTypes: selectedFileTypes.value.length > 0 ? selectedFileTypes.value : undefined
   })
 }
 
@@ -75,7 +132,7 @@ const handleImageSearch = async () => {
   if (!searchImage.value) return
   await searchStore.searchByImage(searchImage.value, {
     collectionId: selectedCollection.value || undefined,
-    fileType: fileType.value || undefined
+    fileTypes: selectedFileTypes.value.length > 0 ? selectedFileTypes.value : undefined
   })
 }
 
@@ -156,10 +213,12 @@ const handleFocusSearch = () => {
 
 onMounted(() => {
   window.addEventListener('focus-search', handleFocusSearch)
+  document.addEventListener('paste', handlePaste)
 })
 
 onUnmounted(() => {
   window.removeEventListener('focus-search', handleFocusSearch)
+  document.removeEventListener('paste', handlePaste)
 })
 </script>
 
@@ -312,7 +371,7 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <p class="text-text-primary font-medium mb-1">画像をドラッグ&ドロップ</p>
-                <p class="text-text-muted text-sm">またはクリックして選択</p>
+                <p class="text-text-muted text-sm">クリックして選択、または <kbd class="px-1.5 py-0.5 bg-bg-tertiary rounded text-xs font-mono">Ctrl+V</kbd> で貼り付け</p>
               </label>
             </div>
 
@@ -342,7 +401,7 @@ onUnmounted(() => {
           </div>
 
           <!-- Filters -->
-          <div class="flex flex-wrap gap-3 mt-6 pt-6 border-t border-border/30">
+          <div class="flex flex-wrap items-center gap-3 mt-6 pt-6 border-t border-border/30">
             <select
               v-model="selectedCollection"
               class="px-4 py-2.5 bg-bg-primary/50 border border-border/50 rounded-xl
@@ -356,17 +415,35 @@ onUnmounted(() => {
               </option>
             </select>
 
-            <select
-              v-model="fileType"
-              class="px-4 py-2.5 bg-bg-primary/50 border border-border/50 rounded-xl
-                     text-text-secondary text-sm
-                     focus:outline-none focus:border-accent/50 focus:shadow-glow-input
-                     transition-all duration-200 cursor-pointer"
-            >
-              <option value="">すべてのタイプ</option>
-              <option value="image">画像のみ</option>
-              <option value="document">ドキュメントのみ</option>
-            </select>
+            <!-- File Type Multi-Select -->
+            <div class="flex items-center gap-2">
+              <span class="text-text-muted text-sm">タイプ:</span>
+              <div class="flex gap-1.5">
+                <button
+                  v-for="option in fileTypeOptions"
+                  :key="option.value"
+                  @click="toggleFileType(option.value)"
+                  :class="[
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 border',
+                    selectedFileTypes.includes(option.value)
+                      ? 'bg-accent/20 border-accent/50 text-accent'
+                      : 'bg-bg-primary/50 border-border/50 text-text-secondary hover:border-accent/30 hover:text-text-primary'
+                  ]"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="option.icon" />
+                  </svg>
+                  {{ option.label }}
+                </button>
+              </div>
+              <button
+                v-if="selectedFileTypes.length > 0"
+                @click="selectedFileTypes = []"
+                class="text-xs text-text-muted hover:text-text-secondary transition-colors"
+              >
+                クリア
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -529,6 +606,8 @@ onUnmounted(() => {
       :document="selectedDocument"
       @close="closePreview"
       @delete="handleDeleteRequest"
+      @prev="navigatePreview('prev')"
+      @next="navigatePreview('next')"
     />
 
     <!-- Delete Confirmation Dialog -->
@@ -541,6 +620,13 @@ onUnmounted(() => {
       type="danger"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
+    />
+
+    <!-- Clipboard Search Modal -->
+    <ClipboardSearchModal
+      :show="showClipboardSearchModal"
+      @close="showClipboardSearchModal = false"
+      @search="handleClipboardSearch"
     />
   </div>
 </template>
@@ -587,5 +673,28 @@ onUnmounted(() => {
     rgba(255, 255, 255, 0.1),
     transparent
   );
+}
+
+/* Select dropdown styling */
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+}
+
+select option {
+  background-color: #1a1a24;
+  color: #e2e8f0;
+  padding: 0.5rem;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+  background-color: #2d2d3d;
+  color: #ffffff;
 }
 </style>

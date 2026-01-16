@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useDocumentsStore } from '@/stores/documents'
 import { useCollectionsStore } from '@/stores/collections'
 import { useToastStore } from '@/stores/toast'
 import PreviewModal from '@/components/PreviewModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ClipboardUploadModal from '@/components/ClipboardUploadModal.vue'
 
 const documentsStore = useDocumentsStore()
 const collectionsStore = useCollectionsStore()
@@ -19,6 +20,34 @@ const isDragging = ref(false)
 
 const showPreview = ref(false)
 const selectedDocument = ref(null)
+const showClipboardModal = ref(false)
+
+// Filter state
+const selectedCollection = ref('')
+const selectedFileTypes = ref([])
+
+const fileTypeOptions = [
+  { value: 'text', label: 'テキスト', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { value: 'image', label: '画像', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { value: 'pdf', label: 'PDF', icon: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' }
+]
+
+const toggleFileType = (type) => {
+  const index = selectedFileTypes.value.indexOf(type)
+  if (index === -1) {
+    selectedFileTypes.value.push(type)
+  } else {
+    selectedFileTypes.value.splice(index, 1)
+  }
+}
+
+// Watch filters and refetch documents
+watch([selectedCollection, selectedFileTypes], async () => {
+  await documentsStore.fetchDocuments({
+    collection_id: selectedCollection.value || undefined,
+    file_types: selectedFileTypes.value.length > 0 ? selectedFileTypes.value : undefined
+  })
+}, { deep: true })
 
 // Multi-select state
 const isSelectionMode = ref(false)
@@ -121,13 +150,61 @@ const closePreview = () => {
   selectedDocument.value = null
 }
 
+const navigatePreview = (direction) => {
+  if (!selectedDocument.value) return
+  const docs = documentsStore.documents
+  const currentIndex = docs.findIndex(d => d.id === selectedDocument.value.id)
+  if (currentIndex === -1) return
+
+  const newIndex = direction === 'prev'
+    ? currentIndex - 1
+    : currentIndex + 1
+
+  if (newIndex >= 0 && newIndex < docs.length) {
+    selectedDocument.value = docs[newIndex]
+  }
+}
+
 const documents = computed(() => documentsStore.documents)
 const isLoading = computed(() => documentsStore.loading)
 const currentPage = computed(() => documentsStore.pagination?.page || 1)
 const totalPages = computed(() => documentsStore.pagination?.pages || 1)
 
+const handleClipboardUploaded = async () => {
+  await documentsStore.fetchDocuments({
+    collection_id: selectedCollection.value || undefined,
+    file_types: selectedFileTypes.value.length > 0 ? selectedFileTypes.value : undefined
+  })
+  await documentsStore.fetchStats()
+}
+
+const openUploadModal = () => {
+  showUploadModal.value = true
+  // Set the currently selected collection as the default for upload
+  uploadCollection.value = selectedCollection.value
+}
+
+const handlePaste = (e) => {
+  // Only handle if no modal is open and not focused in an input
+  if (showUploadModal.value || showClipboardModal.value || showPreview.value) return
+  if (document.activeElement?.tagName === 'INPUT' ||
+      document.activeElement?.tagName === 'TEXTAREA') return
+
+  // Check if there's clipboard content
+  if (e.clipboardData?.items?.length > 0) {
+    e.preventDefault()
+    showClipboardModal.value = true
+  }
+}
+
 onMounted(async () => {
+  await collectionsStore.fetchCollections()
   await documentsStore.fetchDocuments()
+  document.addEventListener('paste', handlePaste)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('paste', handlePaste)
 })
 
 const handleFileSelect = (e) => {
@@ -139,7 +216,10 @@ const addFiles = (files) => {
   const validFiles = files.filter(f =>
     f.type.startsWith('image/') ||
     f.type === 'application/pdf' ||
-    f.type.includes('document')
+    f.type === 'text/plain' ||
+    f.type === 'text/markdown' ||
+    f.name.endsWith('.txt') ||
+    f.name.endsWith('.md')
   )
   uploadFiles.value.push(...validFiles)
 }
@@ -161,21 +241,33 @@ const handleUpload = async () => {
   isUploading.value = true
   uploadProgress.value = 0
 
-  for (let i = 0; i < uploadFiles.value.length; i++) {
-    try {
-      await documentsStore.uploadFiles([uploadFiles.value[i]], uploadCollection.value || undefined)
-      uploadProgress.value = Math.round(((i + 1) / uploadFiles.value.length) * 100)
-    } catch (error) {
-      console.error('Upload failed:', error)
-      toastStore.error('アップロードに失敗しました')
+  // Check if any file is a PDF (needs streaming progress)
+  const hasPdf = uploadFiles.value.some(f => f.type === 'application/pdf')
+
+  try {
+    if (hasPdf) {
+      // Use streaming upload for PDFs to get page-by-page progress
+      await documentsStore.uploadFilesWithProgress(uploadFiles.value, uploadCollection.value || undefined)
+    } else {
+      // Use regular upload for images/text files
+      for (let i = 0; i < uploadFiles.value.length; i++) {
+        await documentsStore.uploadFiles([uploadFiles.value[i]], uploadCollection.value || undefined)
+        uploadProgress.value = Math.round(((i + 1) / uploadFiles.value.length) * 100)
+      }
     }
+    toastStore.success(`${uploadFiles.value.length}件のファイルをアップロードしました`)
+  } catch (error) {
+    console.error('Upload failed:', error)
+    toastStore.error('アップロードに失敗しました')
   }
 
-  toastStore.success(`${uploadFiles.value.length}件のファイルをアップロードしました`)
   isUploading.value = false
   uploadFiles.value = []
   showUploadModal.value = false
-  await documentsStore.fetchDocuments()
+  await documentsStore.fetchDocuments({
+    collection_id: selectedCollection.value || undefined,
+    file_types: selectedFileTypes.value.length > 0 ? selectedFileTypes.value : undefined
+  })
   await documentsStore.fetchStats()
 }
 
@@ -198,6 +290,12 @@ const formatFileSize = (bytes) => {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+// Check if document is a PDF file
+const isPdf = (doc) => {
+  return doc.mime_type === 'application/pdf' ||
+         (doc.file_type === 'document' && doc.file_name?.toLowerCase().endsWith('.pdf'))
 }
 
 const changePage = (page) => {
@@ -230,7 +328,17 @@ const changePage = (page) => {
           {{ isSelectionMode ? '選択中' : '選択' }}
         </button>
         <button
-          @click="showUploadModal = true"
+          @click="showClipboardModal = true"
+          class="btn btn-secondary flex items-center gap-2"
+          title="クリップボードから貼り付け (Ctrl+V)"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          貼り付け
+        </button>
+        <button
+          @click="openUploadModal"
           class="btn btn-primary flex items-center gap-2"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -239,6 +347,60 @@ const changePage = (page) => {
           アップロード
         </button>
       </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap items-center gap-3 mb-6">
+      <select
+        v-model="selectedCollection"
+        class="px-4 py-2.5 bg-bg-secondary border border-border/50 rounded-xl
+               text-text-secondary text-sm
+               focus:outline-none focus:border-accent/50 focus:shadow-glow-input
+               transition-all duration-200 cursor-pointer"
+      >
+        <option value="">すべてのコレクション</option>
+        <option v-for="col in collectionsStore.collections" :key="col.id" :value="col.id">
+          {{ col.name }}
+        </option>
+      </select>
+
+      <!-- File Type Multi-Select -->
+      <div class="flex items-center gap-2">
+        <span class="text-text-muted text-sm">タイプ:</span>
+        <div class="flex gap-1.5">
+          <button
+            v-for="option in fileTypeOptions"
+            :key="option.value"
+            @click="toggleFileType(option.value)"
+            :class="[
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 border',
+              selectedFileTypes.includes(option.value)
+                ? 'bg-accent/20 border-accent/50 text-accent'
+                : 'bg-bg-primary/50 border-border/50 text-text-secondary hover:border-accent/30 hover:text-text-primary'
+            ]"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="option.icon" />
+            </svg>
+            {{ option.label }}
+          </button>
+        </div>
+        <button
+          v-if="selectedFileTypes.length > 0"
+          @click="selectedFileTypes = []"
+          class="text-xs text-text-muted hover:text-text-secondary transition-colors"
+        >
+          クリア
+        </button>
+      </div>
+
+      <button
+        v-if="selectedCollection"
+        @click="selectedCollection = ''"
+        class="text-sm text-text-muted hover:text-text-secondary transition-colors"
+      >
+        コレクションをクリア
+      </button>
     </div>
 
     <!-- Selection Toolbar -->
@@ -308,7 +470,7 @@ const changePage = (page) => {
       <h3 class="text-lg font-display font-semibold text-text-primary mb-2">ファイルがありません</h3>
       <p class="text-text-muted mb-6">最初のファイルをアップロードしましょう</p>
       <button
-        @click="showUploadModal = true"
+        @click="openUploadModal"
         class="btn btn-primary"
       >
         ファイルをアップロード
@@ -337,12 +499,25 @@ const changePage = (page) => {
         >
           <!-- Thumbnail -->
           <div class="aspect-square bg-bg-tertiary/50 relative overflow-hidden">
+            <!-- PDF Icon for PDF files -->
+            <div v-if="isPdf(doc)" class="w-full h-full flex items-center justify-center">
+              <div class="relative">
+                <svg class="w-16 h-16 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M14,2H6C4.9,2 4,2.9 4,4V20C4,21.1 4.9,22 6,22H18C19.1,22 20,21.1 20,20V8L14,2M18,20H6V4H13V9H18V20M10.92,12.31C10.68,11.54 10.15,9.08 11.55,9.04C12.95,9 12.03,12.16 12.03,12.16C12.42,13.65 14.05,14.72 14.05,14.72C14.55,14.57 17.4,14.24 17,15.72C16.57,17.2 13.5,15.81 13.5,15.81C11.55,15.95 10.09,16.47 10.09,16.47C8.96,18.58 7.64,19.5 7.1,18.61C6.43,17.5 9.23,16.07 9.23,16.07C10.68,13.72 10.92,12.31 10.92,12.31Z" />
+                </svg>
+                <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded">
+                  PDF
+                </span>
+              </div>
+            </div>
+            <!-- Regular thumbnail for images -->
             <img
-              v-if="doc.thumbnail_path"
+              v-else-if="doc.thumbnail_path"
               :src="getFileUrl(doc.thumbnail_path)"
               :alt="doc.file_name"
               class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 ease-smooth"
             />
+            <!-- Generic icon for other files -->
             <div v-else class="w-full h-full flex items-center justify-center text-text-muted">
               <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -470,7 +645,7 @@ const changePage = (page) => {
                     <input
                       type="file"
                       multiple
-                      accept="image/*,.pdf"
+                      accept="image/*,.pdf,.txt,.md"
                       class="hidden"
                       id="file-input"
                       @change="handleFileSelect"
@@ -532,14 +707,32 @@ const changePage = (page) => {
                   </div>
 
                   <!-- Progress -->
-                  <div v-if="isUploading" class="space-y-2">
+                  <div v-if="isUploading" class="space-y-3">
                     <div class="h-2 bg-bg-tertiary rounded-full overflow-hidden">
                       <div
-                        class="h-full bg-gradient-to-r from-accent to-accent-hover transition-all duration-500 ease-smooth"
-                        :style="{ width: uploadProgress + '%' }"
+                        class="h-full bg-gradient-to-r from-accent to-accent-hover transition-all duration-300 ease-smooth"
+                        :style="{ width: (documentsStore.pdfProgress.isProcessing ? documentsStore.uploadProgress : uploadProgress) + '%' }"
                       ></div>
                     </div>
-                    <p class="text-sm text-text-muted text-center">{{ uploadProgress }}% 完了</p>
+
+                    <div class="text-center">
+                      <!-- PDF processing progress with page count -->
+                      <template v-if="documentsStore.pdfProgress.isProcessing && documentsStore.pdfProgress.totalPages > 0">
+                        <p class="text-sm text-text-secondary">
+                          <span class="font-medium text-accent">
+                            {{ documentsStore.pdfProgress.currentPage }}/{{ documentsStore.pdfProgress.totalPages }}
+                          </span>
+                          ページ処理中...
+                        </p>
+                        <p v-if="documentsStore.pdfProgress.message" class="text-xs text-text-muted mt-1">
+                          {{ documentsStore.pdfProgress.message }}
+                        </p>
+                      </template>
+                      <!-- Regular progress -->
+                      <p v-else class="text-sm text-text-muted">
+                        {{ documentsStore.pdfProgress.isProcessing ? documentsStore.uploadProgress : uploadProgress }}% 完了
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -572,6 +765,8 @@ const changePage = (page) => {
       :document="selectedDocument"
       @close="closePreview"
       @delete="handleDeleteRequest"
+      @prev="navigatePreview('prev')"
+      @next="navigatePreview('next')"
     />
 
     <!-- Delete Confirmation Dialog -->
@@ -584,6 +779,13 @@ const changePage = (page) => {
       type="danger"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
+    />
+
+    <!-- Clipboard Upload Modal -->
+    <ClipboardUploadModal
+      :show="showClipboardModal"
+      @close="showClipboardModal = false"
+      @uploaded="handleClipboardUploaded"
     />
   </div>
 </template>

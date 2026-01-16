@@ -258,7 +258,11 @@ A Vue.js-based web application for multimodal image search and library managemen
 ### Features
 
 - **Multimodal Search**: Search images using text, image, or mixed inputs with real-time similarity scores
+  - Multi-select type filters (Text, Image, PDF) to narrow search results
+  - Clipboard image paste support for quick image-based search
 - **Library Management**: Upload, preview, and manage your image collection with drag-and-drop support
+  - PDF support with automatic page extraction as searchable images
+  - PDF files display with dedicated icon and in-browser preview
 - **Collections**: Organize images into custom collections for better organization
 - **Batch Operations**: Select multiple files and delete them at once
 - **Modern UI/UX**:
@@ -267,6 +271,7 @@ A Vue.js-based web application for multimodal image search and library managemen
   - Toast notifications for user feedback
   - Keyboard shortcuts (`/` or `Cmd+K` for quick search, `ESC` to close modals)
   - Image zoom functionality in preview modal (`Z` key or click)
+  - Preview navigation with arrow keys (`←`/`→` to browse files)
   - Responsive dark theme with adaptive grid layout
 
 ### Tech Stack

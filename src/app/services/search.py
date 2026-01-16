@@ -14,6 +14,47 @@ class SearchService:
     def __init__(self):
         self.embedding_api_url = settings.EMBEDDING_API_URL
 
+    def _build_file_type_filter(self, file_types: List[str]) -> Optional[Dict]:
+        """Build ChromaDB where clause for file type filtering.
+
+        Supported types:
+        - 'text': file_type='text'
+        - 'image': file_type='image' AND parent_document_id is empty (direct images only)
+        - 'pdf': file_type='image' AND parent_document_id is not empty (PDF page images only)
+
+        Note: Parent PDFs are not stored in ChromaDB (no embeddings), only in SQLite.
+        ChromaDB contains: direct images, PDF page images, and text files.
+        """
+        if not file_types:
+            return None
+
+        conditions = []
+        for ft in file_types:
+            if ft == 'text':
+                conditions.append({"file_type": {"$eq": "text"}})
+            elif ft == 'image':
+                # Direct images only (not PDF pages)
+                # file_type="image" AND parent_document_id="" (empty means direct upload)
+                conditions.append({
+                    "$and": [
+                        {"file_type": {"$eq": "image"}},
+                        {"parent_document_id": {"$eq": ""}}
+                    ]
+                })
+            elif ft == 'pdf':
+                # PDF page images only
+                # file_type="image" AND parent_document_id != "" (has parent = PDF page)
+                conditions.append({
+                    "$and": [
+                        {"file_type": {"$eq": "image"}},
+                        {"parent_document_id": {"$ne": ""}}
+                    ]
+                })
+
+        if len(conditions) == 1:
+            return conditions[0]
+        return {"$or": conditions}
+
     async def _get_embedding(self, input_data: Any) -> List[float]:
         """Get embedding from the embedding API."""
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -59,7 +100,7 @@ class SearchService:
         self,
         query: str,
         limit: int = 20,
-        file_type: str = None,
+        file_types: List[str] = None,
         collection_id: str = None
     ) -> Dict[str, Any]:
         """Search documents by text query."""
@@ -71,10 +112,14 @@ class SearchService:
 
         # Build filter
         where = {}
-        if file_type:
-            where["file_type"] = file_type
+        file_type_filter = self._build_file_type_filter(file_types)
+        if file_type_filter:
+            where = file_type_filter
         if collection_id:
-            where["collection_id"] = collection_id
+            if where:
+                where = {"$and": [where, {"collection_id": collection_id}]}
+            else:
+                where["collection_id"] = collection_id
 
         # Search in ChromaDB
         chroma_results = chroma_manager.search(
@@ -103,7 +148,7 @@ class SearchService:
         self,
         image_data: bytes,
         limit: int = 20,
-        file_type: str = None,
+        file_types: List[str] = None,
         collection_id: str = None
     ) -> Dict[str, Any]:
         """Search documents by image."""
@@ -116,10 +161,14 @@ class SearchService:
 
         # Build filter
         where = {}
-        if file_type:
-            where["file_type"] = file_type
+        file_type_filter = self._build_file_type_filter(file_types)
+        if file_type_filter:
+            where = file_type_filter
         if collection_id:
-            where["collection_id"] = collection_id
+            if where:
+                where = {"$and": [where, {"collection_id": collection_id}]}
+            else:
+                where["collection_id"] = collection_id
 
         # Search in ChromaDB
         chroma_results = chroma_manager.search(
@@ -147,7 +196,7 @@ class SearchService:
         text: str = None,
         image_data: bytes = None,
         limit: int = 20,
-        file_type: str = None,
+        file_types: List[str] = None,
         collection_id: str = None
     ) -> Dict[str, Any]:
         """Search with both text and image."""
@@ -169,10 +218,14 @@ class SearchService:
 
         # Build filter
         where = {}
-        if file_type:
-            where["file_type"] = file_type
+        file_type_filter = self._build_file_type_filter(file_types)
+        if file_type_filter:
+            where = file_type_filter
         if collection_id:
-            where["collection_id"] = collection_id
+            if where:
+                where = {"$and": [where, {"collection_id": collection_id}]}
+            else:
+                where["collection_id"] = collection_id
 
         # Search in ChromaDB
         chroma_results = chroma_manager.search(
